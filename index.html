@@ -54,6 +54,62 @@ function applyScenario(){for(let i=0;i<N;i++){if(scenario==='heat')T[i]+=7;if(sc
 function qsat(t){return clamp(.55*Math.exp(.055*(t-10)),.30,.98)}
 function sample(a,x,y){x=clamp(x,0,NX-1);y=clamp(y,0,NY-1);let x0=Math.floor(x),y0=Math.floor(y),x1=Math.min(x0+1,NX-1),y1=Math.min(y0+1,NY-1),fx=x-x0,fy=y-y0;return a[ix(x0,y0)]*(1-fx)*(1-fy)+a[ix(x1,y0)]*fx*(1-fy)+a[ix(x0,y1)]*(1-fx)*fy+a[ix(x1,y1)]*fx*fy}
 function diffuse(a,k,dt){let out=new Float32Array(N);for(let y=0;y<NY;y++)for(let x=0;x<NX;x++){let i=ix(x,y),l=a[ix(Math.max(0,x-1),y)],r=a[ix(Math.min(NX-1,x+1),y)],u=a[ix(x,Math.max(0,y-1))],d=a[ix(x,Math.min(NY-1,y+1))];out[i]=a[i]+k*dt*(l+r+u+d-4*a[i])}return out}
+
+// Effets biomes : modificateurs thermiques, hydriques et dynamiques.
+// Les valeurs sont appliquées progressivement afin d'éviter les transitions brutales.
+const BIOMES={
+ plain:{temp:1,hum:.05,wind:0},
+ mountain:{temp:-6,hum:.12,wind:18},
+ forest:{temp:-2,hum:.18,wind:-8},
+ desert:{temp:9,hum:-.28,wind:12},
+ ocean:{temp:2,hum:.32,wind:25},
+ city:{temp:4,hum:-.05,wind:5}
+};
+function biomeAt(x,y){
+ let z=Z[ix(x,y)], n=Z.length?0:0;
+ // Classification procédurale : relief élevé = montagne, très bas = océan,
+ // puis zones sèches/forestières/urbaines déterminées par humidité et position.
+ if(z>8)return'mountain';
+ if(z<1.2)return'ocean';
+ let i=ix(x,y);
+ if(A[i]>38)return'city';
+ if(Q[i]>.68)return'forest';
+ if(Q[i]<.28)return'desert';
+ return'plain';
+}
+function applyBiomeEffects(dt){
+ for(let y=0;y<NY;y++)for(let x=0;x<NX;x++){
+  let i=ix(x,y),b=BIOMES[biomeAt(x,y)];
+  T[i]=clamp(T[i]+b.temp*dt*.055,-25,50);
+  Q[i]=clamp(Q[i]+b.hum*dt*.010,0,1);
+  // Effet du biome sur la vitesse de fond du vent.
+  let sp=Math.hypot(U[i],V[i]), target=sp+b.wind*.027;
+  if(sp>0.01){let f=clamp((target-sp)*dt*.12,-.25,.25);U[i]+=U[i]/sp*f;V[i]+=V[i]/sp*f}
+ }
+}
+function applyMountainWind(dt){
+ // Les montagnes ne font pas qu'ajouter une vitesse :
+ // - accélération sur les pentes
+ // - canalisation dans les vallées
+ // - déviation latérale par le relief
+ // - ascendance sur le versant au vent / subsidence sous le vent
+ for(let y=1;y<NY-1;y++)for(let x=1;x<NX-1;x++){
+  let i=ix(x,y),zx=Z[ix(x+1,y)]-Z[ix(x-1,y)],zy=Z[ix(x,y+1)]-Z[ix(x,y-1)];
+  let slope=Math.hypot(zx,zy);
+  if(slope<.05)continue;
+  let ux=U[i],vy=V[i],sp=Math.hypot(ux,vy)+.001;
+  let nx=-zx/(slope+1e-6),ny=-zy/(slope+1e-6);
+  let toward=ux*nx+vy*ny;
+  // Soulèvement au vent et accélération des flux qui suivent les vallées.
+  U[i]+=dt*(nx*toward*.010+(-ny)*toward*.004);
+  V[i]+=dt*(ny*toward*.010+(nx)*toward*.004);
+  let curvature=(Z[ix(x+1,y)]+Z[ix(x-1,y)]+Z[ix(x,y+1)]+Z[ix(x,y-1)]-4*Z[i]);
+  let valley=-curvature;
+  U[i]+=dt*(U[i]/sp)*valley*.003;
+  V[i]+=dt*(V[i]/sp)*valley*.003;
+ }
+}
+
 function step(){const dt=.16*speed,adv=.35*G.adv;let nT=new Float32Array(N),nQ=new Float32Array(N),nC=new Float32Array(N),nA=new Float32Array(N);
 for(let y=0;y<NY;y++)for(let x=0;x<NX;x++){let i=ix(x,y),bx=x-U[i]*adv*dt,by=y-V[i]*adv*dt;nA[i]=sample(A,bx,by)}
 for(let y=0;y<NY;y++)for(let x=0;x<NX;x++){let i=ix(x,y),bx=x-U[i]*adv*dt,by=y-V[i]*adv*dt;nT[i]=sample(T,bx,by);nQ[i]=sample(Q,bx,by);nC[i]=sample(C,bx,by)}
@@ -62,7 +118,8 @@ for(let y=1;y<NY-1;y++)for(let x=1;x<NX-1;x++){let i=ix(x,y),day=G.solar*(.55+.4
 let dT=diffuse(T,.06*G.diff,dt),dQ=diffuse(Q,.045*G.diff,dt),dA=diffuse(A,.02*G.diff,dt);T=dT;Q=dQ;A=dA;
 for(let i=0;i<N;i++){P[i]=1013-(T[i]-15)*1.45-Z[i]*.55+Math.sin((i%NX)/14)*1.2}
 for(let y=1;y<NY-1;y++)for(let x=1;x<NX-1;x++){let i=ix(x,y),tx=(T[ix(x+1,y)]-T[ix(x-1,y)])*.035,ty=(T[ix(x,y+1)]-T[ix(x,y-1)])*.035,px=(P[ix(x+1,y)]-P[ix(x-1,y)])*.010,py=(P[ix(x,y+1)]-P[ix(x,y-1)])*.010;U[i]+=dt*(-px-tx*.10+0.10*V[i]-(U[i]-.2)*.018);V[i]+=dt*(-py-ty*.10-0.10*U[i]-V[i]*.018)}
-for(let i=0;i<N;i++){let wind=Math.hypot(U[i],V[i]);A[i]=clamp(A[i]+dt*(Math.max(0,22-wind)*.018+C[i]*.0015-R[i]*.012),0,100);T[i]=clamp(T[i],-25,50);Q[i]=clamp(Q[i],0,1);U[i]=clamp(U[i],-25,25);V[i]=clamp(V[i],-25,25)}time+=dt}
+applyBiomeEffects(dt);applyMountainWind(dt);
+ for(let i=0;i<N;i++){let wind=Math.hypot(U[i],V[i]);A[i]=clamp(A[i]+dt*(Math.max(0,22-wind)*.018+C[i]*.0015-R[i]*.012),0,100);T[i]=clamp(T[i],-25,50);Q[i]=clamp(Q[i],0,1);U[i]=clamp(U[i],-25,25);V[i]=clamp(V[i],-25,25)}time+=dt}
 function paint(x,y){for(let dy=-brush;dy<=brush;dy++)for(let dx=-brush;dx<=brush;dx++){let xx=x+dx,yy=y+dy;if(xx<0||yy<0||xx>=NX||yy>=NY||dx*dx+dy*dy>brush*brush)continue;let i=ix(xx,yy),k=power*(1-Math.hypot(dx,dy)/(brush+1));if(tool==='heat')T[i]+=k*1.2;if(tool==='cool')T[i]-=k*1.2;if(tool==='humid'){Q[i]=clamp(Q[i]+k*.02,0,1);C[i]=clamp(C[i]+k*2.5,0,100);}if(tool==='dry')Q[i]=clamp(Q[i]-k*.012,0,1);if(tool==='rain'){C[i]=clamp(C[i]+k*6,0,100);Q[i]=clamp(Q[i]+k*.03,0,1);R[i]=clamp(R[i]+k*.7,0,8)}if(tool==='dryprecip'){R[i]=Math.max(0,R[i]-k*.5);C[i]=Math.max(0,C[i]-k*3)}if(tool==='wind'){U[i]+=k*.7;V[i]-=k*.4}if(tool==='cloud')C[i]=clamp(C[i]+k*4,0,100);if(tool==='terrain')Z[i]=clamp(Z[i]+k*.12,0,20);if(tool==='erase'){C[i]*=.85;R[i]=0}}draw();metrics()}
 function color(v,lo,hi){let t=clamp((v-lo)/(hi-lo),0,1),h=240-240*t;return 'hsl('+h+',85%,'+(45+18*(1-Math.abs(t-.5)*2))+'%)'}
 function draw(){let w=canvas.clientWidth,h=canvas.clientHeight;if(canvas.width!==w*devicePixelRatio||canvas.height!==h*devicePixelRatio){canvas.width=w*devicePixelRatio;canvas.height=h*devicePixelRatio;ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0)}let cw=w/NX,ch=h/NY,img=ctx.createImageData(NX,NY),d=img.data;let lo=-10,hi=40,title='Température',unit='°C';for(let y=0;y<NY;y++)for(let x=0;x<NX;x++){let i=ix(x,y),v;if(layer==='real'){let z=Z[i]/15,wet=clamp(Q[i],0,1),cloud=clamp(C[i]/100,0,1),poll=clamp(A[i]/100,0,1);let water=wet>.88&&z<.12;let r,g,b;if(water){r=35;g=95;b=145}else if(z>.62){r=105+Math.round(70*(1-z));g=85+Math.round(55*(1-z));b=62+Math.round(35*(1-z))}else{r=55+Math.round(75*(1-z));g=75+Math.round(95*(1-z));b=42+Math.round(45*(1-z))}let haze=cloud*.48+poll*.28;r=Math.round(r*(1-haze)+175*haze);g=Math.round(g*(1-haze)+185*haze);b=Math.round(b*(1-haze)+195*haze);if(cloud>.12){let shade=1-cloud*.55;r=Math.round(r*shade);g=Math.round(g*shade);b=Math.round(b*shade)}let q=(y*NX+x)*4;d[q]=r;d[q+1]=g;d[q+2]=b;d[q+3]=255;continue}else if(layer==='temp'){v=T[i]}else if(layer==='hum'){v=Q[i]*100;lo=0;hi=100;title='Humidité';unit='%'}else if(layer==='wind'){v=Math.hypot(U[i],V[i]);lo=0;hi=20;title='Vent';unit='m/s'}else if(layer==='rain'){v=R[i];lo=0;hi=8;title='Précipitations';unit='mm/h'}else if(layer==='cloud'){v=C[i];lo=0;hi=100;title='Nuages';unit='%'}else if(layer==='pressure'){v=P[i];lo=980;hi=1040;title='Pression';unit='hPa'}else{v=Z[i];lo=0;hi=15;title='Relief';unit='km'}let rgb=ctx.createElement?null:null;let t=clamp((v-lo)/(hi-lo),0,1),hue=240-240*t,light=43+20*(1-Math.abs(t-.5)*2);let c=hslToRgb(hue,.85,light/100),q=(y*NX+x)*4;d[q]=c[0];d[q+1]=c[1];d[q+2]=c[2];d[q+3]=255}let tmp=document.createElement('canvas');tmp.width=NX;tmp.height=NY;tmp.getContext('2d').putImageData(img,0,0);ctx.imageSmoothingEnabled=true;ctx.drawImage(tmp,0,0,w,h);
