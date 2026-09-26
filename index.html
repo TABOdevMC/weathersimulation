@@ -905,9 +905,26 @@
                         topoUy = -gradY * 2.0;
                     }
                     
-                    windU[id] = baseU + topoUx + windSourceU[id];
-                    windV[id] = baseV + topoUy + windSourceV[id];
+                    // Interaction Vent <-> Température :
+                    // 1) le gradient thermique génère une faible circulation horizontale
+                    //    (les contrastes de température modifient localement le vent).
+                    // 2) le vent ainsi obtenu transportera ensuite la température
+                    //    dans le passage d'advection ci-dessous.
+                    let thermalUx = 0, thermalUy = 0;
+                    if (x > 0 && x < GRID_W - 1 && y > 0 && y < GRID_H - 1) {
+                        const tempGradX = temperature[idx(x + 1, y)] - temperature[idx(x - 1, y)];
+                        const tempGradY = temperature[idx(x, y + 1)] - temperature[idx(x, y - 1)];
 
+                        // Réponse volontairement modérée pour éviter toute dérive
+                        // numérique : un fort contraste thermique renforce la circulation.
+                        thermalUx = Math.max(-0.8, Math.min(0.8, tempGradX * 0.12));
+                        thermalUy = Math.max(-0.8, Math.min(0.8, tempGradY * 0.12));
+                    }
+
+                    windU[id] = baseU + topoUx + thermalUx + windSourceU[id];
+                    windV[id] = baseV + topoUy + thermalUy + windSourceV[id];
+
+                    // Relaxation des forçages locaux pour éviter l'accumulation.
                     windSourceU[id] *= 0.992;
                     windSourceV[id] *= 0.992;
 
@@ -963,6 +980,9 @@
 
                     if (srcX >= 0 && srcX < GRID_W && srcY >= 0 && srcY < GRID_H) {
                         let srcId = idx(srcX, srcY);
+                        // Le vent transporte aussi la température :
+                        // advection progressive, sans remplacement brutal.
+                        nextTemp[id] = nextTemp[id] * 0.82 + temperature[srcId] * 0.18;
                         nextHum[id] = nextHum[id] * 0.7 + humidity[srcId] * 0.3;
                         nextClouds[id] = nextClouds[id] * 0.7 + clouds[srcId] * 0.3;
                         nextPoll[id] = nextPoll[id] * 0.7 + pollution[srcId] * 0.3;
