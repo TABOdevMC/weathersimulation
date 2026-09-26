@@ -1340,10 +1340,40 @@
                         }
 
                     } else if (activeLayer === 'wind') {
-                        let wMag = Math.hypot(windU[id], windV[id]) * 10;
-                        let wNorm = Math.min(1, wMag / 50.0);
-                        let lutIdx = ((wNorm * 255) | 0) * 3;
-                        r = lutWind[lutIdx]; g = lutWind[lutIdx + 1]; b = lutWind[lutIdx + 2];
+                        // Échelle vent dédiée : beaucoup plus de contraste au-dessus de 40 km/h
+                        // et conservation des nuances jusqu'aux vents extrêmes.
+                        const wMag = Math.hypot(windU[id], windV[id]) * 10;
+                        const windStops = [
+                            [0,   15, 23, 42],    // calme : bleu nuit
+                            [10,  20, 184, 166],  // faible : turquoise
+                            [25,  34, 211, 238],  // modéré : cyan
+                            [40,  59, 130, 246],  // fort : bleu
+                            [60,  245, 158, 11],  // très fort : orange
+                            [80,  239, 68, 68],   // violent : rouge
+                            [100, 255, 0, 170],   // tempête : magenta
+                            [120, 255, 255, 255]  // extrême : blanc
+                        ];
+
+                        let s = windStops[windStops.length - 1];
+                        if (wMag <= windStops[0][0]) {
+                            s = windStops[0];
+                        } else {
+                            for (let k = 1; k < windStops.length; k++) {
+                                if (wMag <= windStops[k][0]) {
+                                    const a = windStops[k - 1];
+                                    const bStop = windStops[k];
+                                    const q = (wMag - a[0]) / (bStop[0] - a[0]);
+                                    s = [
+                                        wMag,
+                                        Math.round(a[1] + (bStop[1] - a[1]) * q),
+                                        Math.round(a[2] + (bStop[2] - a[2]) * q),
+                                        Math.round(a[3] + (bStop[3] - a[3]) * q)
+                                    ];
+                                    break;
+                                }
+                            }
+                        }
+                        r = s[1]; g = s[2]; b = s[3];
 
                     } else if (activeLayer === 'pollution') {
                         let pNorm = Math.min(1, pol / 300.0);
