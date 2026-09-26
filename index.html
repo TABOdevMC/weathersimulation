@@ -994,8 +994,12 @@
                     }
                     nextTemp[id] += (targetTemp - temperature[id]) * 0.05;
 
-                    // Le terrain influence directement l'humidité et le vent.
-                    nextHum[id] = Math.max(0, Math.min(100, nextHum[id] + terrainHumEffect * 0.035));
+                    // Le terrain apporte de l'humidité sans la faire dériver vers 100 %.
+                    const terrainMoistureRoom = Math.max(0, 100 - nextHum[id]) / 100;
+                    nextHum[id] = Math.max(
+                        0,
+                        Math.min(100, nextHum[id] + terrainHumEffect * 0.012 * terrainMoistureRoom)
+                    );
 
                     if (terrainWindEffect !== 0) {
                         const windLen = Math.hypot(windU[id], windV[id]);
@@ -1005,22 +1009,31 @@
                         }
                     }
 
-                    // 3. Interaction Température -> Humidité (sens unique)
-                    // La chaleur augmente l'évaporation / humidité, tandis que le froid
-                    // réduit progressivement l'humidité. L'humidité n'agit pas encore
-                    // en retour sur la température.
+                    // 3. Interaction Température -> Humidité (stable)
+                    // L'air ne gagne pas de l'humidité indéfiniment : l'évaporation
+                    // devient de moins en moins efficace à l'approche de la saturation.
                     const tempForHumidity = temperature[id];
-                    let tempHumidityEffect = (tempForHumidity - 18.0) * 0.025 * globalEvapRate;
+                    const moistureRoom = Math.max(0, 100 - nextHum[id]) / 100;
+                    let tempHumidityEffect = (tempForHumidity - 18.0) * 0.006 * globalEvapRate * moistureRoom;
+
                     if (alt < 0.05) {
-                        // Surface d'eau : réponse plus forte à la température.
-                        tempHumidityEffect += Math.max(0, tempForHumidity - 10.0) * 0.035 * globalEvapRate;
+                        // Surface d'eau : apport d'humidité plus important, mais limité
+                        // par l'humidité déjà présente. Un lac humidifie surtout ses abords.
+                        tempHumidityEffect += Math.max(0, tempForHumidity - 8.0) * 0.012 * globalEvapRate * moistureRoom;
                     }
+
+                    // Le refroidissement peut faire baisser légèrement l'humidité,
+                    // sans provoquer de chute brutale.
+                    if (tempForHumidity < 5.0) {
+                        tempHumidityEffect -= Math.min(0.12, (5.0 - tempForHumidity) * 0.008);
+                    }
+
                     nextHum[id] = Math.max(0, Math.min(100, nextHum[id] + tempHumidityEffect));
 
-                    // Évaporation directe des surfaces d'eau
+                    // Évaporation directe des surfaces d'eau : apport local et saturable.
                     if (alt < 0.05) {
-                        let evapAmount = (temperature[id] / 20.0) * 1.5 * globalEvapRate;
-                        nextHum[id] = Math.min(100, nextHum[id] + evapAmount);
+                        const evapAmount = Math.max(0, temperature[id]) * 0.035 * globalEvapRate * moistureRoom;
+                        nextHum[id] = Math.min(96, nextHum[id] + evapAmount);
                     }
 
                     // 4. Formation des nuages + pluie plus réaliste
