@@ -1102,17 +1102,27 @@
                     let u = windU[id];
                     let v = windV[id];
 
-                    let srcX = Math.round(x - u);
-                    let srcY = Math.round(y - v);
+                    // Le vent déplace réellement les masses d'air humide.
+                    // On limite le déplacement d'une cellule pour éviter les téléportations
+                    // lorsque des rafales très fortes apparaissent.
+                    const advU = Math.max(-3, Math.min(3, u));
+                    const advV = Math.max(-3, Math.min(3, v));
+                    let srcX = Math.round(x - advU);
+                    let srcY = Math.round(y - advV);
 
                     if (srcX >= 0 && srcX < GRID_W && srcY >= 0 && srcY < GRID_H) {
-                        let srcId = idx(srcX, srcY);
-                        // Le vent transporte aussi la température :
-                        // advection progressive, sans remplacement brutal.
-                        nextTemp[id] = nextTemp[id] * 0.82 + temperature[srcId] * 0.18;
-                        nextHum[id] = nextHum[id] * 0.7 + humidity[srcId] * 0.3;
-                        nextClouds[id] = nextClouds[id] * 0.7 + clouds[srcId] * 0.3;
-                        nextPoll[id] = nextPoll[id] * 0.7 + pollution[srcId] * 0.3;
+                        const srcId = idx(srcX, srcY);
+
+                        // Advection : les propriétés atmosphériques suivent le vent.
+                        nextTemp[id] = nextTemp[id] * 0.75 + temperature[srcId] * 0.25;
+
+                        // Humidité : transport dominant par le vent. Une masse d'air
+                        // humide venant d'un lac/mer se déplace donc sous le vent.
+                        nextHum[id] = nextHum[id] * 0.45 + humidity[srcId] * 0.55;
+
+                        // Les nuages et la pollution suivent également le même flux.
+                        nextClouds[id] = nextClouds[id] * 0.55 + clouds[srcId] * 0.45;
+                        nextPoll[id] = nextPoll[id] * 0.55 + pollution[srcId] * 0.45;
                     }
 
                     if (globalPollutionEmission > 0 && Math.random() < 0.05) {
