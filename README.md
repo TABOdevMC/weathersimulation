@@ -1,138 +1,196 @@
-# 🌦️ Weather Simulation
+# 🌦️ AeroSim 2D — Simulation météo interactive
 
-Sandbox météo 3D interactive permettant de modifier le terrain et l'atmosphère et d'observer leurs interactions.
+Sandbox météo 2D interactive permettant de modifier le terrain et l'atmosphère, puis d'observer leurs interactions en temps réel.
 
 ## 🚀 Démo
 
 **GitHub Pages :** https://tabodevmc.github.io/weathersimulation/
 
+Le projet fonctionne directement dans le navigateur et ne nécessite pas de serveur backend.
+
 ## ✨ Fonctionnalités
 
-### 🌍 Terrain 3D
-- Monde 3D interactif avec caméra orbitale
-- Relief généré procéduralement
-- Sculpture du terrain à la souris
-- Outils **Élever**, **Creuser** et **Lisser**
-- Taille de pinceau réglable
-- Montagnes et vallées
-- Eau visible et animée
-- Végétation 3D
+### 🗺️ Carte de simulation
 
-### 🌤️ Simulation météo
+La simulation repose sur une grille 2D de **90 × 60 cellules** avec plusieurs couches d'affichage :
 
-Paramètres modifiables en temps réel :
+- 🌍 Vue réaliste / composite
+- 📡 Radar des précipitations
+- ⛰️ Élévation
 - 🌡️ Température
 - 💧 Humidité
-- 💨 Vitesse du vent
-- 🌊 Présence de l'eau
+- 💨 Vent
+- 🏭 Pollution
 
-Les biomes appliquent leurs propres effets sur les conditions atmosphériques :
+### 🌤️ Variables météorologiques
 
-| Biome | Température | Humidité | Vent |
-|---|---:|---:|---:|
-| 🌾 Plaine | +1°C | +5% | +0 km/h |
-| ⛰️ Montagne | -6°C | +12% | +18 km/h |
-| 🌲 Forêt | -2°C | +18% | -8 km/h |
-| 🏜️ Désert | +9°C | -28% | +12 km/h |
-| 🌊 Océan | +2°C | +32% | +25 km/h |
-| 🏙️ Ville | +4°C | -5% | +5 km/h |
+La simulation fait évoluer notamment :
 
-### ⛰️ Physique du relief
+- Température
+- Humidité
+- Vent horizontal
+- Nuages
+- Précipitations
+- Pollution atmosphérique
 
-Le relief influence directement la simulation : le vent rencontre une pente, l'air est forcé de monter, l'ascendance favorise la condensation et les précipitations sur le versant exposé. Après la crête, l'air redescend et s'assèche, créant une **ombre pluviométrique**.
+Les variables interagissent entre elles : la température influence l'humidité, le vent transporte les propriétés atmosphériques et le relief modifie localement le vent, l'humidité et les précipitations.
 
-La hauteur et la pente du terrain sont utilisées pour calculer l'influence orographique.
+### ⛰️ Influence du relief
 
-### ☁️ Nuages et vent
+Le relief intervient directement dans la météo simulée :
 
-- Nuages 3D animés
-- Déplacement contrôlé par la vitesse du vent
-- Réaction des nuages au relief
-- Variation de hauteur et de densité au-dessus des reliefs
-- Simulation continue avec pause/reprise
+- pente et différence d'altitude utilisées pour modifier le vent ;
+- accélération du vent sur les zones exposées ;
+- ralentissement sous le vent ;
+- influence de l'altitude sur la température ;
+- influence du relief sur l'humidité ;
+- soulèvement orographique favorisant les nuages ;
+- précipitations renforcées lorsque l'humidité et la couverture nuageuse sont suffisantes.
 
-### 🎬 Scénarios
+L'objectif est de reproduire progressivement des mécanismes comme l'effet orographique et l'ombre pluviométrique.
 
-| Scénario | Conditions |
-|---|---|
-| ☀️ **Canicule** | 38°C, air chaud et sec |
-| 🌪️ **Tempête** | 95 km/h, forte humidité |
-| 🌧️ **Front pluvieux** | 12°C, humidité très élevée |
-| 🏔️ **Barrière montagneuse** | Relief + vent + humidité |
-| 🏜️ **Sécheresse** | 32°C, humidité très faible |
-| 🌧️ **Mousson** | Chaleur + humidité + vent |
-| ⚙️ **Mode libre** | Paramètres entièrement personnalisables |
+### 💨 Vent
 
-## 🖱️ Contrôles
+Le vent possède une échelle de couleurs dédiée permettant de distinguer les vitesses élevées :
 
-| Action | Contrôle |
-|---|---|
-| Élever le terrain | Sélectionner **Élever**, puis cliquer/glisser |
-| Creuser | Sélectionner **Creuser**, puis cliquer/glisser |
-| Lisser | Sélectionner **Lisser**, puis cliquer/glisser |
-| Modifier le pinceau | Curseur **Taille** |
-| Explorer le terrain | Caméra orbitale |
-| Modifier la météo | Curseurs atmosphériques |
-| Pause | Bouton **Pause** |
+| Vitesse | Couleur indicative |
+|---:|---|
+| 0–10 km/h | Bleu nuit |
+| 10–25 km/h | Turquoise |
+| 25–40 km/h | Cyan |
+| 40–60 km/h | Bleu |
+| 60–80 km/h | Orange |
+| 80–100 km/h | Rouge |
+| 100–120 km/h | Magenta |
+| 120+ km/h | Blanc |
+
+La carte conserve ainsi du contraste au-dessus de 80 km/h.
+
+Le vent est également représenté par des particules animées et son comportement est influencé par le relief.
+
+### 🌧️ Nuages et précipitations
+
+La formation des nuages et de la pluie est progressive :
+
+- l'humidité élevée favorise la formation nuageuse ;
+- le soulèvement lié au relief augmente l'humidité effective ;
+- la pluie augmente progressivement lorsque les nuages sont suffisamment chargés ;
+- les précipitations consomment progressivement de l'humidité ;
+- la température influence également le comportement des précipitations.
+
+### 🧰 Outils de simulation
+
+La barre d'outils permet notamment d'agir directement sur la simulation :
+
+- **Élever** le terrain
+- **Abaisser** le terrain
+- **Chauffer**
+- **Refroidir**
+- **Humidifier**
+- **Assécher**
+- **Polluer**
+- **Nettoyer**
+- **Source de vent**
+- **Station météo**
+- **Dépression**
+- **Anticyclone**
+- **Orage**
+- **Blizzard**
+- **Inspection**
+
+Les actions peuvent être utilisées pendant la simulation afin d'observer leurs effets.
+
+### 📍 Stations météo
+
+Des stations peuvent être placées sur la carte pour suivre localement :
+
+- température ;
+- humidité ;
+- vitesse du vent ;
+- pollution.
+
+Un historique est conservé pour les mesures et affiché avec des graphiques.
+
+### 📊 Statistiques
+
+L'interface affiche notamment :
+
+- température moyenne ;
+- couverture nuageuse ;
+- taux de précipitations ;
+- qualité moyenne de l'air.
+
+Les mises à jour des statistiques et des graphiques sont limitées afin de réduire les pics de calcul et les micro-saccades.
+
+## ⏯️ Simulation
+
+La boucle principale utilise `requestAnimationFrame` pour l'affichage et exécute les pas de simulation séparément. La simulation peut être mise en pause et sa vitesse peut être ajustée depuis l'interface.
+
+## ⚡ Performances
+
+Plusieurs optimisations ont été mises en place :
+
+- grille compacte de 5 400 cellules ;
+- télémétrie des stations limitée en fréquence ;
+- graphiques mis à jour moins fréquemment que le rendu ;
+- échelle de couleurs du vent réutilisée au lieu d'être recréée pour chaque cellule ;
+- redimensionnement du canvas effectué uniquement lorsque ses dimensions changent.
 
 ## 🛠️ Technologies
 
-- **React**
-- **Vite**
-- **Three.js**
-- **JavaScript / ES Modules**
-- **GitHub Actions**
+Le prototype météo actuel est principalement basé sur :
+
+- **HTML**
+- **CSS**
+- **JavaScript**
+- **Canvas 2D**
+- **Chart.js**
 - **GitHub Pages**
+
+Le fichier principal de la simulation est `index.html`.
 
 ## 💻 Installation locale
 
-```bash
+Le prototype actuel est autonome et peut être ouvert directement dans un navigateur.
+
+Pour récupérer le projet :
+
+~~~bash
 git clone https://github.com/TABOdevMC/weathersimulation.git
 cd weathersimulation
-npm install
-npm run dev
-```
+~~~
 
-Build de production :
-
-```bash
-npm run build
-```
-
-Prévisualisation du build :
-
-```bash
-npm run preview
-```
+Puis ouvrir `index.html` dans un navigateur, ou utiliser un serveur statique local.
 
 ## 📦 Déploiement
 
-Le projet est configuré pour GitHub Pages avec GitHub Actions. Chaque push sur `main` déclenche le workflow de build et de déploiement.
+Le projet est publié avec **GitHub Pages**.
 
-Le site utilise le chemin `/weathersimulation/`.
+**URL de production :**
 
-## 📁 Structure
+https://tabodevmc.github.io/weathersimulation/
 
-```text
+Le dépôt contient également la configuration historique Vite/React du projet ; le prototype météo actuellement déployé est une version autonome centrée sur `index.html`.
+
+## 📁 Structure actuelle
+
+~~~text
 weathersimulation/
 ├── .github/
 │   └── workflows/
-│       └── deploy-pages.yml
-├── src/
-│   ├── main.jsx
-│   └── style.css
-├── index.html
-├── package.json
-└── vite.config.js
-```
+├── index.html          # Application météo 2D autonome
+├── package.json        # Configuration du projet
+├── vite.config.js
+└── README.md
+~~~
 
 ## 🎯 Objectif
 
-Le projet sert de laboratoire interactif pour expérimenter les relations entre :
+Le projet sert de laboratoire pour expérimenter progressivement les relations :
 
-**terrain → vent → ascendance → condensation → nuages → précipitations → zone sèche**
+**terrain → vent → ascendance → humidité → nuages → précipitations → transport atmosphérique**
 
-L'objectif est de faire évoluer progressivement cette sandbox vers une simulation météo et environnementale plus complète.
+L'objectif est d'enrichir progressivement la simulation pour obtenir une météo 2D plus cohérente et interactive, tout en conservant une expérience fluide dans le navigateur.
 
 ## 📄 Licence
 
