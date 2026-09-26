@@ -928,14 +928,49 @@
                     windSourceU[id] *= 0.992;
                     windSourceV[id] *= 0.992;
 
-                    // 2. Solar Heating & Altitude Lapse Rate
+                    // 2. Influence du terrain sur la météo
+                    // Altitude : refroidissement avec l'élévation + pression plus faible.
                     let lapseRate = alt * 12.0;
-                    let targetTemp = 15.0 + (sunFactor * 12.0) - lapseRate + globalTempOffset;
-                    
+                    let terrainTempEffect = 0;
+                    let terrainHumEffect = 0;
+                    let terrainWindEffect = 0;
+
+                    // Mer / plans d'eau : inertie thermique et apport d'humidité.
                     if (alt < 0.05) {
-                        targetTemp = 17.0 + globalTempOffset;
+                        terrainTempEffect += 2.0;
+                        terrainHumEffect += 5.0;
+                        terrainWindEffect += 1.5;
+                    // Littoral / basse altitude : influence marine encore présente mais moindre.
+                    } else if (alt < 0.12) {
+                        terrainTempEffect += 0.8;
+                        terrainHumEffect += 2.0;
+                        terrainWindEffect += 0.5;
+                    // Relief : refroidissement supplémentaire et accélération du vent.
+                    } else if (alt >= 0.50) {
+                        const mountainFactor = Math.min(1.5, (alt - 0.50) / 0.50);
+                        terrainTempEffect -= 1.5 * mountainFactor;
+                        terrainHumEffect += 3.0 * mountainFactor;
+                        terrainWindEffect += 2.5 * mountainFactor;
+                    }
+
+                    let targetTemp = 15.0 + (sunFactor * 12.0) - lapseRate
+                        + terrainTempEffect + globalTempOffset;
+
+                    if (alt < 0.05) {
+                        targetTemp = 17.0 + terrainTempEffect + globalTempOffset;
                     }
                     nextTemp[id] += (targetTemp - temperature[id]) * 0.05;
+
+                    // Le terrain influence directement l'humidité et le vent.
+                    nextHum[id] = Math.max(0, Math.min(100, nextHum[id] + terrainHumEffect * 0.035));
+
+                    if (terrainWindEffect !== 0) {
+                        const windLen = Math.hypot(windU[id], windV[id]);
+                        if (windLen > 0.001) {
+                            windU[id] += (windU[id] / windLen) * terrainWindEffect * 0.04;
+                            windV[id] += (windV[id] / windLen) * terrainWindEffect * 0.04;
+                        }
+                    }
 
                     // 3. Interaction Température -> Humidité (sens unique)
                     // La chaleur augmente l'évaporation / humidité, tandis que le froid
@@ -963,7 +998,10 @@
                         uplift = Math.max(0, windU[id] * gradSlope * 5.0);
                     }
 
-                    let effectiveHum = Math.min(115, nextHum[id] + uplift * 10.0);
+                    // Le relief force l'ascendance : plus le vent rencontre une pente,
+                    // plus la condensation et les précipitations sont favorisées.
+                    const terrainLift = Math.min(1.5, uplift * 0.35);
+                    let effectiveHum = Math.min(115, nextHum[id] + uplift * 10.0 + terrainLift * 8.0);
 
                     // Les nuages se chargent progressivement : une humidité proche de
                     // la saturation crée des nuages, mais ceux-ci ne disparaissent pas
