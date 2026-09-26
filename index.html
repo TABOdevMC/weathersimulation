@@ -27,7 +27,7 @@ table{width:100%;border-collapse:collapse;font-size:11px}td{padding:3px;border-b
 <h3>Outils météo</h3><div class="precipTools"><button id="rainSmall" class="rainSmall" data-tool="rain">🌧️ Pluie</button><button id="dryPrecip" class="rainSmall dry" data-tool="dryprecip">☀️ Assécher précipitation</button></div><div class="toolgrid">
 <button class="tool active" data-tool="heat">🌡 Chauffer</button><button class="tool" data-tool="cool">❄️ Refroidir</button>
 <button class="tool" data-tool="humid">💧 Humidifier</button><button class="tool" data-tool="dry">🏜 Assécher</button>
-<button class="tool" data-tool="wind">💨 Vent</button><button class="tool" data-tool="rain">🌧 Pluie</button>
+<button class="tool" data-tool="wind">💨 Vent</button>
 <button class="tool" data-tool="cloud">☁️ Nuages</button><button class="tool" data-tool="pollution">🏭 Pollution</button>
 <button class="tool" data-tool="terrain">⛰ Relief</button><button class="tool" data-tool="erase">⌫ Effacer</button><button class="tool" data-tool="station">📍 Station</button>
 </div>
@@ -109,7 +109,7 @@ function bindRange(id,key,unit,dec=0){$(id).oninput=e=>{G[key]=+e.target.value;$
 function updateLabels(){[['gtemp','gtempV',' °C'],['ghum','ghumV',' %'],['gwind','gwindV',' km/h'],['gdir','gdirV','°'],['gpress','gpressV',' hPa'],['solar','solarV','%'],['evap','evapV','%'],['diff','diffV','%'],['adv','advV','%']].forEach(a=>$(a[1]).textContent=$(a[0]).value+a[2]);$('brushV').textContent=brush;$('powerV').textContent=Math.round(power*100)+'%'}
 ['gtemp','ghum','gwind','gdir','gpress','solar','evap','diff','adv'].forEach(id=>$(id).oninput=()=>{let map={gtemp:'temp',ghum:'hum',gwind:'wind',gdir:'dir',gpress:'press',solar:'solar',evap:'evap',diff:'diff',adv:'adv'};G[map[id]]=+$(id).value;updateLabels()});
 $('speed').oninput=e=>{spd=+e.target.value;$('speedV').textContent=spd+'×'};$('brush').oninput=e=>{brush=+e.target.value;updateLabels()};$('power').oninput=e=>{power=+e.target.value/100;updateLabels()};
-function selectTool(b){document.querySelectorAll('.tool,#rainBig,#dryPrecip').forEach(x=>x.classList.remove('active'));b.classList.add('active');tool=b.dataset.tool;$('toolLabel').textContent='Outil : '+b.textContent.replace(/^\S+\s/,'')}document.querySelectorAll('.tool').forEach(b=>b.onclick=()=>selectTool(b));$('rainBig').onclick=()=>selectTool($('rainBig'));$('dryPrecip').onclick=()=>selectTool($('dryPrecip'));
+function selectTool(b){document.querySelectorAll('.tool,#rainBig,#dryPrecip').forEach(x=>x.classList.remove('active'));b.classList.add('active');tool=b.dataset.tool;$('toolLabel').textContent='Outil : '+b.textContent.replace(/^\S+\s/,'')}document.querySelectorAll('.tool').forEach(b=>b.onclick=()=>selectTool(b));$('rainSmall').onclick=()=>selectTool($('rainSmall'));$('dryPrecip').onclick=()=>selectTool($('dryPrecip'));
 $('layer').onchange=e=>{layer=e.target.value;draw()};$('preset').onchange=e=>{preset=e.target.value;reset()};$('scenario').onchange=e=>{scenario=e.target.value;reset()};
 $('run').onclick=()=>{running=!running;$('run').textContent=running?'⏸ Pause':'▶ Démarrer';$('status').textContent=running?'● Simulation active':'● En pause'};
 $('reset').onclick=reset;$('rainReset').onclick=()=>{R.fill(0);RAINTOOL.fill(0);draw();metrics()};$('clearHistory').onclick=()=>{history=[];renderHistory()};
