@@ -1433,8 +1433,13 @@
 
             offCtx.putImageData(imgData, 0, 0);
 
+            // Le champ météo est calculé sur une grille 90×60. Un léger flou
+            // au redimensionnement évite que chaque cellule apparaisse comme un
+            // gros carré coloré, tout en gardant les vecteurs et stations nets.
             ctx.imageSmoothingEnabled = true;
+            ctx.filter = 'blur(1.8px)';
             ctx.drawImage(offscreenCanvas, 0, 0, canvas.width, canvas.height);
+            ctx.filter = 'none';
 
             const cellW = canvas.width / GRID_W;
             const cellH = canvas.height / GRID_H;
