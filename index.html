@@ -898,10 +898,13 @@
             }
             sunFactor *= globalSolar;
 
-            // Wind direction components
+            // Wind direction components.
+            // La direction affichée est une direction météorologique d'ORIGINE :
+            // 270° = vent venant de l'Ouest et allant vers l'Est.
+            // On convertit donc "vient de" en direction réelle du déplacement.
             let windRad = (globalWindDirDeg * Math.PI) / 180;
-            let baseU = -Math.cos(windRad) * (globalWindSpeed / 10);
-            let baseV = -Math.sin(windRad) * (globalWindSpeed / 10);
+            let baseU = -Math.sin(windRad) * (globalWindSpeed / 10);
+            let baseV = -Math.cos(windRad) * (globalWindSpeed / 10);
 
             // Copy current state to scratch arrays
             nextTemp.set(temperature);
@@ -1179,8 +1182,12 @@
 
                 if (gx >= 0 && gx < GRID_W && gy >= 0 && gy < GRID_H) {
                     let id = idx(gx, gy);
-                    p.x += windU[id] * 0.3;
-                    p.y += windV[id] * 0.3;
+                    // Déplacement des particules proportionnel au vent,
+                    // mais plafonné pour éviter les sauts lorsque le vent est fort.
+                    const particleSpeed = Math.min(0.9, Math.hypot(windU[id], windV[id]) * 0.12);
+                    const particleLen = Math.hypot(windU[id], windV[id]) || 1;
+                    p.x += (windU[id] / particleLen) * particleSpeed;
+                    p.y += (windV[id] / particleLen) * particleSpeed;
                 } else {
                     p.x = Math.random() * GRID_W;
                     p.y = Math.random() * GRID_H;
@@ -1448,7 +1455,13 @@
                         let u = windU[id] || 0;
                         let v = windV[id] || 0;
                         ctx.moveTo(px, py);
-                        ctx.lineTo(px + u * cellW * 1.5, py + v * cellH * 1.5);
+                        // Les vecteurs servent à visualiser la direction, pas à
+                        // couvrir l'écran de grandes traînées. Longueur plafonnée.
+                        const windLen = Math.hypot(u, v);
+                        const vectorLen = Math.min(18, 5 + windLen * 1.8);
+                        const dirX = windLen > 0.001 ? u / windLen : 0;
+                        const dirY = windLen > 0.001 ? v / windLen : 0;
+                        ctx.lineTo(px + dirX * vectorLen, py + dirY * vectorLen);
                     }
                 }
                 ctx.stroke();
