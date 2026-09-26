@@ -19,7 +19,7 @@ p{color:#9eb5ca;font-size:12px;line-height:1.4;margin:4px 0 12px}label{display:f
 <button class="tool active" data-tool="heat">🌡 Chauffer</button><button class="tool" data-tool="cool">❄️ Refroidir</button>
 <button class="tool" data-tool="humid">💧 Humidifier</button><button class="tool" data-tool="dry">🏜 Assécher</button>
 <button class="tool" data-tool="rain">🌧️ Pluie</button><button class="tool" data-tool="dryprecip">☀️ Assécher précip.</button>
-<button class="tool" data-tool="wind">💨 Vent</button><button class="tool" data-tool="cloud">☁️ Nuages</button>
+<button class="tool" data-tool="wind">💨 Vent</button><button class="tool" data-tool="winddir">🧭 Direction du vent</button><button class="tool" data-tool="cloud">☁️ Nuages</button>
 <button class="tool" data-tool="terrain">⛰ Relief</button><button class="tool" data-tool="erase">⌫ Effacer</button>
 </div>
 <label>Taille <span id="brushV" class="value">8</span></label><input id="brush" type="range" min="2" max="25" value="8">
@@ -77,6 +77,24 @@ $('reset').onclick=reset;$('clearRain').onclick=()=>{R.fill(0);C.forEach((_,i)=>
 $('speed').oninput=e=>{speed=+e.target.value;$('speedV').textContent=speed+'×'};$('brush').oninput=e=>{brush=+e.target.value;$('brushV').textContent=brush};$('power').oninput=e=>{power=+e.target.value/100;$('powerV').textContent=e.target.value+'%'};
 $('scenario').onchange=e=>{scenario=e.target.value;reset()};$('layer').onchange=e=>{layer=e.target.value;draw()};$('vectors').onchange=draw;
 ['solar','diff','adv','baseH'].forEach(id=>$(id).oninput=e=>{G[id==='baseH'?'baseH':id]=+e.target.value/100;$(id+'V').textContent=e.target.value+'%' ;if(id==='baseH')Q.fill(G.baseH);});
-let down=false;function pointer(e){let r=canvas.getBoundingClientRect(),x=Math.floor((e.clientX-r.left)/r.width*NX),y=Math.floor((e.clientY-r.top)/r.height*NY);paint(x,y)}canvas.onpointerdown=e=>{down=true;canvas.setPointerCapture(e.pointerId);pointer(e)};canvas.onpointermove=e=>{if(down)pointer(e)};canvas.onpointerup=()=>down=false;canvas.onpointerleave=()=>down=false;
+let down=false,windStart=null;
+function gridPoint(e){let r=canvas.getBoundingClientRect();return{x:(e.clientX-r.left)/r.width*NX,y:(e.clientY-r.top)/r.height*NY}}
+function applyWindDirection(x0,y0,x1,y1){
+ let dx=x1-x0,dy=y1-y0,len=Math.hypot(dx,dy);if(len<1)return;
+ let ux=dx/len,uy=dy/len,force=clamp(len/brush,0.5,6)*power;
+ for(let y=Math.max(0,Math.floor(y0-brush));y<=Math.min(NY-1,Math.ceil(y0+brush));y++)
+  for(let x=Math.max(0,Math.floor(x0-brush));x<=Math.min(NX-1,Math.ceil(x0+brush));x++){
+   let d=Math.hypot(x-x0,y-y0);if(d>brush)continue;
+   let k=(1-d/(brush+1))*force,i=ix(x,y);
+   U[i]=clamp(U[i]*(1-k*.45)+ux*k*5,-25,25);
+   V[i]=clamp(V[i]*(1-k*.45)+uy*k*5,-25,25);
+  }
+ draw();metrics()
+}
+function pointer(e){let p=gridPoint(e);paint(Math.floor(p.x),Math.floor(p.y))}
+canvas.onpointerdown=e=>{down=true;canvas.setPointerCapture(e.pointerId);if(tool==='winddir'){windStart=gridPoint(e)}else pointer(e)};
+canvas.onpointermove=e=>{if(!down)return;if(tool==='winddir'){draw();let p=gridPoint(e),r=canvas.getBoundingClientRect(),sx=r.left+windStart.x/NX*r.width,sy=r.top+windStart.y/NY*r.height,ex=r.left+p.x/NX*r.width,ey=r.top+p.y/NY*r.height;ctx.strokeStyle='white';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(ex,ey);ctx.stroke();ctx.beginPath();ctx.moveTo(ex,ey);ctx.lineTo(ex-(p.x-windStart.x)*.18+(p.y-windStart.y)*.08,ey-(p.y-windStart.y)*.18-(p.x-windStart.x)*.08);ctx.stroke()}else pointer(e)};
+canvas.onpointerup=e=>{if(down&&tool==='winddir'&&windStart){let p=gridPoint(e);applyWindDirection(windStart.x,windStart.y,p.x,p.y)}down=false;windStart=null};
+canvas.onpointerleave=()=>{if(tool!=='winddir')down=false};
 function loop(ts){if(!last)last=ts;if(run){let n=Math.min(4,Math.floor((ts-last)/16));for(let k=0;k<n;k++)step();draw();metrics();clock()}last=ts;requestAnimationFrame(loop)}reset();requestAnimationFrame(loop);
 </script></body></html>
