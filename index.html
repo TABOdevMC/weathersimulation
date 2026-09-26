@@ -937,7 +937,19 @@
                     }
                     nextTemp[id] += (targetTemp - temperature[id]) * 0.05;
 
-                    // 3. Evaporation
+                    // 3. Interaction Température -> Humidité (sens unique)
+                    // La chaleur augmente l'évaporation / humidité, tandis que le froid
+                    // réduit progressivement l'humidité. L'humidité n'agit pas encore
+                    // en retour sur la température.
+                    const tempForHumidity = temperature[id];
+                    let tempHumidityEffect = (tempForHumidity - 18.0) * 0.025 * globalEvapRate;
+                    if (alt < 0.05) {
+                        // Surface d'eau : réponse plus forte à la température.
+                        tempHumidityEffect += Math.max(0, tempForHumidity - 10.0) * 0.035 * globalEvapRate;
+                    }
+                    nextHum[id] = Math.max(0, Math.min(100, nextHum[id] + tempHumidityEffect));
+
+                    // Évaporation directe des surfaces d'eau
                     if (alt < 0.05) {
                         let evapAmount = (temperature[id] / 20.0) * 1.5 * globalEvapRate;
                         nextHum[id] = Math.min(100, nextHum[id] + evapAmount);
