@@ -955,28 +955,59 @@
                         nextHum[id] = Math.min(100, nextHum[id] + evapAmount);
                     }
 
-                    // 4. Cloud formation & Precipitation
+                    // 4. Formation des nuages + pluie plus réaliste
+                    // L'ascendance orographique favorise la condensation du côté au vent.
                     let uplift = 0;
                     if (x > 0 && x < GRID_W - 1 && y > 0 && y < GRID_H - 1) {
                         let gradSlope = elevation[idx(x + 1, y)] - elevation[idx(x - 1, y)];
                         uplift = Math.max(0, windU[id] * gradSlope * 5.0);
                     }
 
-                    let effectiveHum = nextHum[id] + uplift * 10.0;
-                    if (effectiveHum > 75.0) {
-                        let cloudGen = (effectiveHum - 75.0) * 0.8;
+                    let effectiveHum = Math.min(115, nextHum[id] + uplift * 10.0);
+
+                    // Les nuages se chargent progressivement : une humidité proche de
+                    // la saturation crée des nuages, mais ceux-ci ne disparaissent pas
+                    // instantanément lorsque l'humidité baisse légèrement.
+                    if (effectiveHum > 72.0) {
+                        let cloudGen = (effectiveHum - 72.0) * 0.45;
                         nextClouds[id] = Math.min(100, clouds[id] + cloudGen);
                     } else {
-                        nextClouds[id] = Math.max(0, clouds[id] - 1.0);
+                        nextClouds[id] = Math.max(0, clouds[id] - 0.6);
                     }
 
-                    if (nextClouds[id] > 50.0) {
-                        rain[id] = (nextClouds[id] - 50.0) * 0.8;
-                        nextHum[id] = Math.max(0, nextHum[id] - rain[id] * 0.3);
-                        nextClouds[id] = Math.max(0, nextClouds[id] - rain[id] * 0.2);
-                    } else {
-                        rain[id] = 0.0;
+                    // Pluie = eau condensée dans le nuage. L'intensité augmente
+                    // non-linéairement avec l'épaisseur du nuage et l'humidité.
+                    // Une inertie évite l'effet "ON/OFF" à chaque tick.
+                    let rainTarget = 0;
+                    if (nextClouds[id] > 58.0 && effectiveHum > 78.0) {
+                        const cloudLoad = (nextClouds[id] - 58.0) / 42.0;
+                        const moistureLoad = (effectiveHum - 78.0) / 22.0;
+                        rainTarget = Math.min(
+                            35.0,
+                            2.0 + 28.0 * Math.pow(cloudLoad, 1.7) * Math.min(1.25, moistureLoad)
+                        );
+
+                        // L'ascendance renforce les précipitations sur les versants exposés.
+                        rainTarget *= (1.0 + Math.min(0.45, uplift * 0.12));
+
+                        // Température proche de 0°C : précipitations plus faibles sous forme
+                        // liquide (la neige sera traitée séparément si ajoutée plus tard).
+                        if (temperature[id] < 1.0) {
+                            rainTarget *= Math.max(0.25, (temperature[id] + 3.0) / 4.0);
+                        }
                     }
+
+                    rain[id] += (rainTarget - rain[id]) * 0.28;
+
+                    // La précipitation consomme progressivement l'eau condensée et
+                    // ramène l'humidité vers un état moins saturé.
+                    if (rain[id] > 0.05) {
+                        nextHum[id] = Math.max(0, nextHum[id] - rain[id] * 0.045);
+                        nextClouds[id] = Math.max(0, nextClouds[id] - rain[id] * 0.018);
+                    }
+
+                    // Très faible pluie résiduelle : on la fait disparaître doucement.
+                    if (rain[id] < 0.05) rain[id] = 0.0;
                 }
             }
 
