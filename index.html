@@ -24,7 +24,7 @@ p{color:#9eb5ca;font-size:12px;line-height:1.4;margin:4px 0 12px}label{display:f
 </div>
 <label>Taille <span id="brushV" class="value">8</span></label><input id="brush" type="range" min="2" max="25" value="8">
 <label>Puissance <span id="powerV" class="value">50%</span></label><input id="power" type="range" min="5" max="100" value="50">
-<h2>Affichage</h2><select id="layer"><option value="real">🗺️ Carte réaliste</option><option value="temp">🌡 Température</option><option value="hum">💧 Humidité</option><option value="wind">💨 Vent</option><option value="rain">🌧️ Précipitations</option><option value="cloud">☁️ Nuages</option><option value="pressure">◉ Pression</option><option value="terrain">⛰ Relief</option></select>
+<h2>Affichage</h2><select id="layer"><option value="real">🗺️ Carte réaliste</option><option value="temp">🌡 Température</option><option value="hum">💧 Humidité</option><option value="wind">💨 Vent</option><option value="rain">🌧️ Précipitations</option><option value="cloud">☁️ Nuages</option><option value="pressure">◉ Pression</option><option value="terrain">⛰ Relief</option></select><button id="realView" type="button">🗺️ Afficher la vue réaliste</button>
 <label class="check"><input id="vectors" type="checkbox" checked> Vecteurs de vent</label>
 <button id="clearRain" class="danger" style="width:100%;margin-top:8px">Arrêter la pluie</button>
 </aside>
@@ -158,7 +158,7 @@ document.querySelectorAll('.tool').forEach(b=>b.onclick=()=>{document.querySelec
 $('run').onclick=()=>{run=!run;$('run').textContent=run?'⏸ Pause':'▶ Démarrer';$('status').textContent=(run?'Simulation active':'En pause')+' · outil : '+tool};
 $('reset').onclick=reset;$('clearRain').onclick=()=>{R.fill(0);C.forEach((_,i)=>C[i]*=.7);draw();metrics()};
 $('speed').oninput=e=>{speed=+e.target.value;$('speedV').textContent=speed+'×'};$('brush').oninput=e=>{brush=+e.target.value;$('brushV').textContent=brush};$('power').oninput=e=>{power=+e.target.value/100;$('powerV').textContent=e.target.value+'%'};
-$('scenario').onchange=e=>{scenario=e.target.value;reset()};$('layer').onchange=e=>{layer=e.target.value;draw()};$('vectors').onchange=draw;
+$('scenario').onchange=e=>{scenario=e.target.value;reset()};$('layer').onchange=e=>{layer=e.target.value;draw()};$('realView').onclick=()=>{$('layer').value='real';layer='real';draw()};$('vectors').onchange=draw;
 ['solar','diff','adv','baseH'].forEach(id=>$(id).oninput=e=>{G[id==='baseH'?'baseH':id]=+e.target.value/100;$(id+'V').textContent=e.target.value+'%' ;if(id==='baseH')Q.fill(G.baseH);});
 let down=false,windStart=null;
 function gridPoint(e){let r=canvas.getBoundingClientRect();return{x:(e.clientX-r.left)/r.width*NX,y:(e.clientY-r.top)/r.height*NY}}
