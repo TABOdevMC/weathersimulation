@@ -1247,6 +1247,35 @@
         }
 
         // HIGH-PRECISION MAP RENDERER WITH SMOOTH COLOR PALETTES
+        const WIND_COLOR_STOPS = [
+            [0, 15, 23, 42],
+            [10, 20, 184, 166],
+            [25, 34, 211, 238],
+            [40, 59, 130, 246],
+            [60, 245, 158, 11],
+            [80, 239, 68, 68],
+            [100, 255, 0, 170],
+            [120, 255, 255, 255]
+        ];
+
+        function getWindColor(wMag) {
+            if (wMag <= WIND_COLOR_STOPS[0][0]) return WIND_COLOR_STOPS[0];
+            for (let k = 1; k < WIND_COLOR_STOPS.length; k++) {
+                if (wMag <= WIND_COLOR_STOPS[k][0]) {
+                    const a = WIND_COLOR_STOPS[k - 1];
+                    const b = WIND_COLOR_STOPS[k];
+                    const q = (wMag - a[0]) / (b[0] - a[0]);
+                    return [
+                        wMag,
+                        Math.round(a[1] + (b[1] - a[1]) * q),
+                        Math.round(a[2] + (b[2] - a[2]) * q),
+                        Math.round(a[3] + (b[3] - a[3]) * q)
+                    ];
+                }
+            }
+            return WIND_COLOR_STOPS[WIND_COLOR_STOPS.length - 1];
+        }
+
         function render() {
             resizeCanvas();
 
@@ -1342,37 +1371,7 @@
                     } else if (activeLayer === 'wind') {
                         // Échelle vent dédiée : beaucoup plus de contraste au-dessus de 40 km/h
                         // et conservation des nuances jusqu'aux vents extrêmes.
-                        const wMag = Math.hypot(windU[id], windV[id]) * 10;
-                        const windStops = [
-                            [0,   15, 23, 42],    // calme : bleu nuit
-                            [10,  20, 184, 166],  // faible : turquoise
-                            [25,  34, 211, 238],  // modéré : cyan
-                            [40,  59, 130, 246],  // fort : bleu
-                            [60,  245, 158, 11],  // très fort : orange
-                            [80,  239, 68, 68],   // violent : rouge
-                            [100, 255, 0, 170],   // tempête : magenta
-                            [120, 255, 255, 255]  // extrême : blanc
-                        ];
-
-                        let s = windStops[windStops.length - 1];
-                        if (wMag <= windStops[0][0]) {
-                            s = windStops[0];
-                        } else {
-                            for (let k = 1; k < windStops.length; k++) {
-                                if (wMag <= windStops[k][0]) {
-                                    const a = windStops[k - 1];
-                                    const bStop = windStops[k];
-                                    const q = (wMag - a[0]) / (bStop[0] - a[0]);
-                                    s = [
-                                        wMag,
-                                        Math.round(a[1] + (bStop[1] - a[1]) * q),
-                                        Math.round(a[2] + (bStop[2] - a[2]) * q),
-                                        Math.round(a[3] + (bStop[3] - a[3]) * q)
-                                    ];
-                                    break;
-                                }
-                            }
-                        }
+                        const s = getWindColor(Math.hypot(windU[id], windV[id]) * 10);
                         r = s[1]; g = s[2]; b = s[3];
 
                     } else if (activeLayer === 'pollution') {
