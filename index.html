@@ -1171,9 +1171,16 @@
             });
         }
 
+        let lastTelemetryUpdate = 0;
         let lastChartUpdate = 0;
 
         function updateStationTelemetry() {
+            // La télémétrie n'a pas besoin d'être recalculée à chaque micro-pas.
+            // Cela évite les pics CPU/GC qui peuvent provoquer des saccades périodiques.
+            const now = performance.now();
+            if (now - lastTelemetryUpdate < 120) return;
+            lastTelemetryUpdate = now;
+
             stations.forEach(st => {
                 const id = idx(st.x, st.y);
                 const t = temperature[id];
@@ -1194,8 +1201,9 @@
                 }
             });
 
-            const now = performance.now();
-            if (now - lastChartUpdate > 200) { // Throttle chart DOM updates to max 5 FPS
+            refreshActiveStationUI(false);
+
+            if (now - lastChartUpdate > 500) {
                 lastChartUpdate = now;
                 refreshActiveStationUI(true);
 
@@ -1210,8 +1218,6 @@
                 document.getElementById('stat-cloud-cover').textContent = Math.round(sumCloud / totalCells) + '%';
                 document.getElementById('stat-rain-rate').textContent = (sumRain / totalCells * 0.1).toFixed(2) + ' mm/h';
                 document.getElementById('stat-avg-aqi').textContent = Math.round(sumAQI / totalCells) + ' AQI';
-            } else {
-                refreshActiveStationUI(false);
             }
         }
 
