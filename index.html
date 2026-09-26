@@ -896,13 +896,46 @@
                     const id = idx(x, y);
                     const alt = elevation[id];
 
-                    // 1. Synoptic Wind with Orographic Steering
+                    // 1. Vent + interaction réaliste avec le relief
+                    // Le relief ne pousse plus simplement le vent "vers le bas".
+                    // On sépare :
+                    //  - canalisation par pente/valley
+                    //  - accélération sur les crêtes
+                    //  - ralentissement côté sous-le-vent
+                    //  - déviation du vent tangentiellement aux courbes de niveau.
                     let topoUx = 0, topoUy = 0;
                     if (x > 0 && x < GRID_W - 1 && y > 0 && y < GRID_H - 1) {
-                        let gradX = elevation[idx(x + 1, y)] - elevation[idx(x - 1, y)];
-                        let gradY = elevation[idx(x, y + 1)] - elevation[idx(x, y - 1)];
-                        topoUx = -gradX * 2.0;
-                        topoUy = -gradY * 2.0;
+                        const gradX = (elevation[idx(x + 1, y)] - elevation[idx(x - 1, y)]) * 0.5;
+                        const gradY = (elevation[idx(x, y + 1)] - elevation[idx(x, y - 1)]) * 0.5;
+                        const slope = Math.hypot(gradX, gradY);
+
+                        const gLen = slope + 0.0001;
+                        const gx = gradX / gLen;
+                        const gy = gradY / gLen;
+
+                        // Direction horizontale du vent de base.
+                        const wLen = Math.hypot(baseU, baseV) + 0.0001;
+                        const wx = baseU / wLen;
+                        const wy = baseV / wLen;
+
+                        // Vent vers la pente = ascendance ; vent opposé = versant sous le vent.
+                        const slopeExposure = wx * gx + wy * gy;
+
+                        // Composante tangentielle : le vent contourne partiellement le relief
+                        // au lieu de traverser brutalement les montagnes.
+                        const tangentU = -gy * slopeExposure;
+                        const tangentV = gx * slopeExposure;
+
+                        // Accélération modérée sur les pentes exposées au vent.
+                        const orographicAccel = Math.max(0, slopeExposure) * Math.min(1.8, slope * 10.0);
+                        topoUx += tangentU * 0.9 + wx * orographicAccel;
+                        topoUy += tangentV * 0.9 + wy * orographicAccel;
+
+                        // Ralentissement sous le vent + turbulence légère derrière les reliefs.
+                        const lee = Math.max(0, -slopeExposure);
+                        const leeDrag = Math.min(0.35, lee * Math.min(1.0, slope * 5.0));
+                        topoUx -= baseU * leeDrag;
+                        topoUy -= baseV * leeDrag;
                     }
                     
                     // Interaction Vent <-> Température :
@@ -1721,8 +1754,8 @@
                 min.textContent = '0% (Sec)'; max.textContent = '100% (Saturé/Nuages)';
             } else if (activeLayer === 'wind') {
                 title.textContent = 'Vitesse du Vent (km/h)';
-                bar.style.background = 'linear-gradient(to right, #0f172a, #14b8a6, #06b6d4, #f59e0b, #ef4444)';
-                min.textContent = '0 km/h (Calme)'; max.textContent = '50+ km/h (Violent)';
+                bar.style.background = 'linear-gradient(to right, #0f172a, #14b8a6, #06b6d4, #3b82f6, #f59e0b, #ef4444, #ff00aa, #ffffff)';
+                min.textContent = '0 km/h (Calme)'; max.textContent = '120+ km/h (Tempête)';
             } else if (activeLayer === 'pollution') {
                 title.textContent = 'Qualité de l\'Air (AQI)';
                 bar.style.background = 'linear-gradient(to right, #10b981, #22c55e, #eab308, #f97316, #ef4444, #a855f7, #881337)';
