@@ -1122,8 +1122,14 @@
                     // La précipitation consomme progressivement l'eau condensée et
                     // ramène l'humidité vers un état moins saturé.
                     if (rain[id] > 0.05) {
-                        nextHum[id] = Math.max(0, nextHum[id] - rain[id] * 0.045);
-                        nextClouds[id] = Math.max(0, nextClouds[id] - rain[id] * 0.018);
+                        // La pluie retire de l'eau à la colonne d'air :
+                        // plus elle tombe fort, plus l'air s'assèche.
+                        // L'effet est progressif pour éviter un assèchement brutal.
+                        const rainDrying = Math.min(1.8, rain[id] * 0.085);
+                        nextHum[id] = Math.max(0, nextHum[id] - rainDrying);
+
+                        // Une partie de l'eau condensée est aussi retirée du nuage.
+                        nextClouds[id] = Math.max(0, nextClouds[id] - rain[id] * 0.028);
                     }
 
                     // Très faible pluie résiduelle : on la fait disparaître doucement.
