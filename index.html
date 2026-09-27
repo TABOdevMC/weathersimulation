@@ -1061,8 +1061,23 @@
                     // L'ascendance orographique favorise la condensation du côté au vent.
                     let uplift = 0;
                     if (x > 0 && x < GRID_W - 1 && y > 0 && y < GRID_H - 1) {
-                        let gradSlope = elevation[idx(x + 1, y)] - elevation[idx(x - 1, y)];
-                        uplift = Math.max(0, windU[id] * gradSlope * 5.0);
+                        // Gradient du relief dans les deux axes. L'ascendance dépend
+                        // uniquement de la composante du vent qui monte réellement
+                        // la pente, pas seulement du vent Est/Ouest.
+                        const gradX = (elevation[idx(x + 1, y)] - elevation[idx(x - 1, y)]) * 0.5;
+                        const gradY = (elevation[idx(x, y + 1)] - elevation[idx(x, y - 1)]) * 0.5;
+                        const slope = Math.hypot(gradX, gradY);
+
+                        // Produit scalaire vent · pente = vent qui remonte la pente.
+                        // À 17 km/h, l'effet reste modéré ; il augmente surtout
+                        // lorsqu'une masse d'air humide rencontre un relief marqué.
+                        const slopeExposure = windU[id] * gradX + windV[id] * gradY;
+                        uplift = Math.max(0, slopeExposure) * 2.5;
+                        uplift = Math.min(0.8, uplift);
+
+                        // Une pente presque plate ne doit pas créer de pluie
+                        // orographique simplement à cause du vent.
+                        if (slope < 0.008) uplift = 0;
                     }
 
                     // Le relief force l'ascendance : plus le vent rencontre une pente,
