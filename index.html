@@ -115,6 +115,18 @@
                 <option value="custom">Terrain Vierge / Plat</option>
             </select>
         </div>
+        <div class="flex items-center space-x-2">
+            <span class="text-xs text-slate-400 font-medium"><i class="fa-solid fa-cloud-sun-rain mr-1"></i> Scénario:</span>
+            <select id="scenario-select" class="bg-slate-800 border border-slate-700 text-slate-100 rounded-lg px-3 py-1.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm">
+                <option value="">Choisir...</option>
+                <option value="storm">Dépression pluvieuse</option>
+                <option value="thunderstorm">Orage chaud</option>
+                <option value="heatwave">Canicule sèche</option>
+                <option value="blizzard">Blizzard</option>
+                <option value="monsoon">Mousson tropicale</option>
+                <option value="anticyclone">Anticyclone</option>
+            </select>
+        </div>
     </header>
 
     <!-- Main Content Grid -->
@@ -1655,6 +1667,90 @@
             document.getElementById('inspect-aqi').textContent = Math.round(pollution[id]) + ' AQI';
         }
 
+        function applyScenario(scenario) {
+            const terrainByScenario = {
+                storm: 'coastal',
+                thunderstorm: 'plains',
+                heatwave: 'desert',
+                blizzard: 'valley',
+                monsoon: 'archipelago',
+                anticyclone: 'plains'
+            };
+
+            const terrain = terrainByScenario[scenario];
+            if (!terrain) return;
+
+            loadTerrainPreset(terrain);
+
+            // Paramètres atmosphériques du scénario.
+            const configs = {
+                storm:       { solar: 0.75, temp: 2,  wind: 32, dir: 270, evap: 1.25, poll: 0.08 },
+                thunderstorm:{ solar: 1.25, temp: 5,  wind: 22, dir: 270, evap: 1.45, poll: 0.05 },
+                heatwave:    { solar: 1.75, temp: 13, wind: 14, dir: 90,  evap: 0.90, poll: 0.22 },
+                blizzard:    { solar: 0.55, temp: -13,wind: 48, dir: 270, evap: 0.55, poll: 0.04 },
+                monsoon:     { solar: 1.15, temp: 7,  wind: 28, dir: 270, evap: 1.70, poll: 0.05 },
+                anticyclone: { solar: 1.35, temp: 4,  wind: 7,  dir: 90,  evap: 0.70, poll: 0.02 }
+            };
+            const cfg = configs[scenario];
+
+            globalSolar = cfg.solar;
+            globalTempOffset = cfg.temp;
+            globalWindSpeed = cfg.wind;
+            globalWindDirDeg = cfg.dir;
+            globalEvapRate = cfg.evap;
+            globalPollutionEmission = cfg.poll;
+
+            // Conditions initiales pour rendre le scénario immédiatement visible.
+            for (let y = 0; y < GRID_H; y++) {
+                for (let x = 0; x < GRID_W; x++) {
+                    const id = idx(x, y);
+                    const water = elevation[id] < 0.05;
+                    const d = Math.hypot(x - GRID_W / 2, y - GRID_H / 2);
+
+                    if (scenario === 'storm') {
+                        humidity[id] = Math.min(100, water ? 94 : 78);
+                        clouds[id] = Math.min(100, 55 + Math.max(0, 18 - d) * 2);
+                    } else if (scenario === 'thunderstorm') {
+                        humidity[id] = Math.min(100, 68 + Math.max(0, 15 - d) * 2);
+                        clouds[id] = Math.min(100, 72 + Math.max(0, 12 - d) * 2.2);
+                    } else if (scenario === 'heatwave') {
+                        humidity[id] = water ? 60 : 18;
+                        clouds[id] = 2;
+                    } else if (scenario === 'blizzard') {
+                        temperature[id] = Math.min(2, temperature[id] - 8);
+                        humidity[id] = Math.min(100, water ? 82 : 72);
+                        clouds[id] = Math.min(100, 58 + Math.max(0, 18 - d) * 1.5);
+                    } else if (scenario === 'monsoon') {
+                        humidity[id] = Math.min(100, water ? 97 : 88);
+                        clouds[id] = Math.min(100, 62 + Math.max(0, 20 - d) * 1.5);
+                    } else if (scenario === 'anticyclone') {
+                        humidity[id] = water ? 72 : 42;
+                        clouds[id] = 4;
+                        rain[id] = 0;
+                    }
+
+                    if (scenario === 'storm' && clouds[id] > 65) rain[id] = 5;
+                    if (scenario === 'thunderstorm' && clouds[id] > 70) rain[id] = 8;
+                    if (scenario === 'monsoon' && clouds[id] > 70) rain[id] = 4;
+                    if (scenario === 'blizzard' && clouds[id] > 65) rain[id] = 3;
+                }
+            }
+
+            document.getElementById('preset-select').value = terrain;
+            document.getElementById('slider-solar').value = Math.round(globalSolar * 100);
+            document.getElementById('val-solar').textContent = Math.round(globalSolar * 100) + '%';
+            document.getElementById('slider-temp-global').value = globalTempOffset;
+            document.getElementById('val-temp-global').textContent = (globalTempOffset >= 0 ? '+' : '') + globalTempOffset.toFixed(1) + ' °C';
+            document.getElementById('slider-wind-speed').value = globalWindSpeed;
+            document.getElementById('val-wind-speed').textContent = globalWindSpeed + ' km/h';
+            document.getElementById('slider-wind-dir').value = globalWindDirDeg;
+            document.getElementById('slider-global-poll').value = Math.round(globalPollutionEmission * 100);
+            document.getElementById('val-global-poll').textContent = globalPollutionEmission > 0.5 ? 'Forte' : (globalPollutionEmission > 0.15 ? 'Moyenne' : 'Faible');
+
+            simAccumulator = 0;
+            render();
+        }
+
         function setupEventListeners() {
             window.addEventListener('resize', resizeCanvas);
 
@@ -1760,6 +1856,12 @@
 
             document.getElementById('preset-select').addEventListener('change', (e) => {
                 loadTerrainPreset(e.target.value);
+            });
+            document.getElementById('scenario-select').addEventListener('change', (e) => {
+                if (e.target.value) {
+                    applyScenario(e.target.value);
+                    e.target.value = '';
+                }
             });
 
             document.getElementById('brush-size').addEventListener('input', (e) => {
