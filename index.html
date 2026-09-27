@@ -843,9 +843,19 @@
                 for (let y = 0; y < GRID_H; y++) {
                     for (let x = 0; x < GRID_W; x++) {
                         const id = idx(x, y);
-                        let distToCenter = Math.abs(y - GRID_H / 2);
-                        let mountainFactor = Math.pow(distToCenter / (GRID_H / 2), 2);
-                        elevation[id] = 0.1 + mountainFactor * 0.75 + (Math.sin(x * 0.2) * 0.05);
+                        const centerY = GRID_H / 2;
+                        const distToCenter = Math.abs(y - centerY);
+                        const mountainFactor = Math.pow(distToCenter / (GRID_H / 2), 2);
+
+                        // Relief 2D : on évite le sinus uniquement sur X qui créait
+                        // des bandes verticales parfaitement alignées dans la carte.
+                        const broadRidge = Math.sin(x * 0.10 + y * 0.055) * 0.025;
+                        const smallRidge = Math.cos(x * 0.23 - y * 0.17) * 0.012;
+                        const ridge = broadRidge + smallRidge;
+
+                        elevation[id] = Math.max(0.01, 0.1 + mountainFactor * 0.75 + ridge);
+
+                        // Ouverture vers la mer à l'ouest.
                         if (x < 15 && y > 20 && y < 40) elevation[id] = 0.01;
                     }
                 }
