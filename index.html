@@ -1372,6 +1372,9 @@
             return WIND_COLOR_STOPS[WIND_COLOR_STOPS.length - 1];
         }
 
+        const WIND_COLOR_LUT = Array.from({ length: 121 }, (_, speed) => getWindColor(speed));
+
+
         function render() {
             resizeCanvas();
 
@@ -1467,7 +1470,8 @@
                     } else if (activeLayer === 'wind') {
                         // Échelle vent dédiée : beaucoup plus de contraste au-dessus de 40 km/h
                         // et conservation des nuances jusqu'aux vents extrêmes.
-                        const s = getWindColor(Math.hypot(windU[id], windV[id]) * 10);
+                        const windSpeed = Math.min(120, Math.round(Math.hypot(windU[id], windV[id]) * 10));
+                        const s = WIND_COLOR_LUT[windSpeed];
                         r = s[1]; g = s[2]; b = s[3];
 
                     } else if (activeLayer === 'pollution') {
@@ -1489,7 +1493,9 @@
             // au redimensionnement évite que chaque cellule apparaisse comme un
             // gros carré coloré, tout en gardant les vecteurs et stations nets.
             ctx.imageSmoothingEnabled = true;
-            ctx.filter = 'blur(1.8px)';
+            // À haute résolution, l'interpolation native suffit et évite le coût
+            // du filtre CSS. Le léger flou reste uniquement sur les petites grilles.
+            if (GRID_W <= 90) ctx.filter = 'blur(1.2px)';
             ctx.drawImage(offscreenCanvas, 0, 0, canvas.width, canvas.height);
             ctx.filter = 'none';
 
@@ -2022,7 +2028,10 @@
             updateLegendUI();
             resizeCanvas();
 
-            function mainLoop() {
+            let lastRenderTime = 0;
+            const RENDER_INTERVAL_MS = 1000 / 50;
+
+            function mainLoop(now) {
                 if (isRunning) {
                     simAccumulator += simSpeed;
                     const stepsToRun = Math.floor(simAccumulator);
@@ -2035,7 +2044,10 @@
                     }
                 }
 
-                render();
+                if (now - lastRenderTime >= RENDER_INTERVAL_MS || !isRunning) {
+                    lastRenderTime = now;
+                    render();
+                }
                 requestAnimationFrame(mainLoop);
             }
 
