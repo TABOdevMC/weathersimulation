@@ -116,6 +116,15 @@
             </select>
         </div>
         <div class="flex items-center space-x-2">
+            <span class="text-xs text-slate-400 font-medium"><i class="fa-solid fa-expand mr-1"></i> Résolution:</span>
+            <select id="resolution-select" class="bg-slate-800 border border-slate-700 text-slate-100 rounded-lg px-3 py-1.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm">
+                <option value="60x40">Basse (60×40)</option>
+                <option value="90x60" selected>Normale (90×60)</option>
+                <option value="120x80">Haute (120×80)</option>
+                <option value="180x120">Très haute (180×120)</option>
+            </select>
+        </div>
+        <div class="flex items-center space-x-2">
             <span class="text-xs text-slate-400 font-medium"><i class="fa-solid fa-cloud-sun-rain mr-1"></i> Scénario:</span>
             <select id="scenario-select" class="bg-slate-800 border border-slate-700 text-slate-100 rounded-lg px-3 py-1.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm">
                 <option value="">Choisir...</option>
@@ -1761,7 +1770,25 @@
             render();
         }
 
+        function setupResolutionControl() {
+            const select = document.getElementById('resolution-select');
+            if (!select) return;
+
+            const saved = localStorage.getItem('aerosim-resolution') || '90x60';
+            if ([...select.options].some(option => option.value === saved)) {
+                select.value = saved;
+            }
+
+            select.addEventListener('change', (e) => {
+                localStorage.setItem('aerosim-resolution', e.target.value);
+                // Les Float32Array et le canvas hors écran dépendent de la grille.
+                // Un rechargement évite un état partiellement redimensionné.
+                window.location.reload();
+            });
+        }
+
         function setupEventListeners() {
+            setupResolutionControl();
             window.addEventListener('resize', resizeCanvas);
 
             canvas.addEventListener('mousedown', (e) => {
