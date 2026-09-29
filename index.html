@@ -1234,10 +1234,19 @@
                         }
 
                         // Les cellules déjà en feu perdent progressivement de l'intensité.
+                        // Plus l'air est sec, moins le feu s'éteint et plus il peut gagner
+                        // rapidement les cellules voisines. À l'inverse, l'humidité freine
+                        // fortement l'extension du front.
+                        const dryness = Math.max(0, Math.min(1, (70 - humidity[id]) / 70));
+                        const dryBoost = 0.35 + dryness * 1.65;
+
                         const baseDecay = 0.055;
                         const rainExtinguish = Math.min(2.5, rain[id] * 0.16);
                         const humidityDamping = Math.max(0, humidity[id] - 65) * 0.0009;
                         const decay = baseDecay + rainExtinguish + humidityDamping;
+
+                        // Le feu se propage davantage dans un air sec.
+                        spread *= dryBoost;
 
                         nextFire[id] = Math.max(0, Math.min(100, localFire - decay + spread));
 
