@@ -633,8 +633,8 @@
 
         // Weather Stations Array
         let stations = [
-            { id: 1, name: 'Station Alpha (Vallée)', x: 45, y: 30, history: { temp: [], hum: [], wind: [], aqi: [] } },
-            { id: 2, name: 'Station Bêta (Sommet)', x: 22, y: 15, history: { temp: [], hum: [], wind: [], aqi: [] } }
+            { id: 1, name: 'Station Alpha (Vallée)', x: 45, y: 30, history: { temp: [], hum: [], wind: [], rain: [], aqi: [] } },
+            { id: 2, name: 'Station Bêta (Sommet)', x: 22, y: 15, history: { temp: [], hum: [], wind: [], rain: [], aqi: [] } }
         ];
         let activeStationIndex = 0;
 
@@ -1312,12 +1312,14 @@
                 st.history.temp.push(t);
                 st.history.hum.push(h);
                 st.history.wind.push(w);
+                st.history.rain.push(rain[id] * 0.1);
                 st.history.aqi.push(p);
 
                 if (st.history.temp.length > 30) {
                     st.history.temp.shift();
                     st.history.hum.shift();
                     st.history.wind.shift();
+                    st.history.rain.shift();
                     st.history.aqi.shift();
                 }
             });
@@ -1839,7 +1841,7 @@
                         name: `Station ${newId}`,
                         x: gx,
                         y: gy,
-                        history: { temp: [], hum: [], wind: [], aqi: [] }
+                        history: { temp: [], hum: [], wind: [], rain: [], aqi: [] }
                     });
                     activeStationIndex = stations.length - 1;
                     populateStationDropdown();
