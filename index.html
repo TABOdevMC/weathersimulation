@@ -1203,20 +1203,49 @@
                     // Très faible pluie résiduelle : on la fait disparaître doucement.
                     if (rain[id] < 0.05) rain[id] = 0.0;
 
-                    // Feu : il consomme son intensité, émet de la pollution et
-                    // s'éteint beaucoup plus vite sous la pluie.
-                    // Un feu ne peut jamais subsister sur l'eau.
-                    if (elevation[id] < 0.05) fire[id] = 0;
-
-                    if (fire[id] > 0.05) {
-                        const rainExtinguish = Math.min(4.0, rain[id] * 0.18);
-                        const humidityLoss = humidity[id] * 0.001;
-                        nextFire[id] = Math.max(0, fire[id] - 0.08 - rainExtinguish - humidityLoss);
-
-                        const firePollution = fire[id] * 0.055;
-                        nextPoll[id] = Math.min(300, nextPoll[id] + firePollution);
-                    } else {
+                    // Feu : le foyer reste sur place. Il ne se déplace pas avec le vent.
+                    // Le vent étend lentement le front dans sa direction, tandis que le foyer
+                    // présent sur place faiblit progressivement.
+                    if (elevation[id] < 0.05) {
                         nextFire[id] = 0;
+                    } else {
+                        const localFire = fire[id];
+                        let spread = 0;
+                        let nearbyFire = 0;
+
+                        if (x > 0) nearbyFire = Math.max(nearbyFire, fire[idx(x - 1, y)]);
+                        if (x < GRID_W - 1) nearbyFire = Math.max(nearbyFire, fire[idx(x + 1, y)]);
+                        if (y > 0) nearbyFire = Math.max(nearbyFire, fire[idx(x, y - 1)]);
+                        if (y < GRID_H - 1) nearbyFire = Math.max(nearbyFire, fire[idx(x, y + 1)]);
+
+                        // Propagation lente dans le sens du vent.
+                        const windLen = Math.hypot(windU[id], windV[id]);
+                        if (windLen > 0.05) {
+                            const wx = windU[id] / windLen;
+                            const wy = windV[id] / windLen;
+                            const upwindX = Math.round(x - wx * 1.5);
+                            const upwindY = Math.round(y - wy * 1.5);
+
+                            if (upwindX >= 0 && upwindX < GRID_W && upwindY >= 0 && upwindY < GRID_H) {
+                                const upwindFire = fire[idx(upwindX, upwindY)];
+                                // Seulement une petite fraction du feu source est transmise.
+                                spread = upwindFire * (0.018 + Math.min(0.045, windLen * 0.006));
+                            }
+                        }
+
+                        // Les cellules déjà en feu perdent progressivement de l'intensité.
+                        const baseDecay = 0.055;
+                        const rainExtinguish = Math.min(2.5, rain[id] * 0.16);
+                        const humidityDamping = Math.max(0, humidity[id] - 65) * 0.0009;
+                        const decay = baseDecay + rainExtinguish + humidityDamping;
+
+                        nextFire[id] = Math.max(0, Math.min(100, localFire - decay + spread));
+
+                        // Le feu pollue localement sans être transporté comme un paquet de feu.
+                        if (localFire > 0.05) {
+                            const firePollution = localFire * 0.055;
+                            nextPoll[id] = Math.min(300, nextPoll[id] + firePollution);
+                        }
                     }
                 }
             }
@@ -1240,13 +1269,11 @@
                         const transportedHum = sampleGridBilinear(humidity, srcX, srcY);
                         const transportedClouds = sampleGridBilinear(clouds, srcX, srcY);
                         const transportedPoll = sampleGridBilinear(pollution, srcX, srcY);
-                        const transportedFire = sampleGridBilinear(fire, srcX, srcY);
 
                         nextTemp[id] = nextTemp[id] * 0.75 + transportedTemp * 0.25;
                         nextHum[id] = nextHum[id] * 0.45 + transportedHum * 0.55;
                         nextClouds[id] = nextClouds[id] * 0.55 + transportedClouds * 0.45;
                         nextPoll[id] = nextPoll[id] * 0.55 + transportedPoll * 0.45;
-                        nextFire[id] = nextFire[id] * 0.50 + transportedFire * 0.50;
                     }
 
                     if (globalPollutionEmission > 0 && Math.random() < 0.05) {
@@ -1458,13 +1485,6 @@
                     const pol = pollution[id];
 
                     if (activeLayer === 'composite') {
-                        // Lueur du feu par-dessus le relief.
-                        if (fire[id] > 0.5) {
-                            const f = Math.min(1, fire[id] / 100);
-                            r = Math.round(r * (1 - 0.72 * f) + 255 * 0.72 * f);
-                            g = Math.round(g * (1 - 0.88 * f) + 90 * 0.88 * f);
-                            b = Math.round(b * (1 - 0.95 * f) + 8 * 0.95 * f);
-                        }
                         // Terrain de base via LUT
                         let lutIdx = Math.min(255, Math.max(0, (alt * 255) | 0)) * 3;
                         r = lutElevation[lutIdx];
@@ -1495,6 +1515,16 @@
                                 b = Math.min(255, b + 35);
                                 r = Math.max(0, r - 15);
                             }
+                        }
+
+                        // Feux visibles en vue réaliste : la végétation reste visible sous
+                        // une lueur chaude, plus intense au centre du foyer.
+                        if (fire[id] > 0.5) {
+                            const f = Math.min(1, fire[id] / 100);
+                            const glow = 0.18 + 0.72 * Math.pow(f, 0.7);
+                            r = Math.min(255, Math.round(r * (1 - glow) + 255 * glow));
+                            g = Math.min(255, Math.round(g * (1 - glow) + 92 * glow));
+                            b = Math.min(255, Math.round(b * (1 - glow) + 8 * glow));
                         }
 
                         // Teinte de pollution atmosphérique (Brume smog)
