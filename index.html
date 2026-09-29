@@ -1517,14 +1517,54 @@
                             }
                         }
 
-                        // Feux visibles en vue réaliste : la végétation reste visible sous
-                        // une lueur chaude, plus intense au centre du foyer.
-                        if (fire[id] > 0.5) {
-                            const f = Math.min(1, fire[id] / 100);
-                            const glow = 0.18 + 0.72 * Math.pow(f, 0.7);
-                            r = Math.min(255, Math.round(r * (1 - glow) + 255 * glow));
-                            g = Math.min(255, Math.round(g * (1 - glow) + 92 * glow));
-                            b = Math.min(255, Math.round(b * (1 - glow) + 8 * glow));
+                        // Feu réaliste : le sol reste visible, avec une structure
+                        // en braises -> flammes jaunes -> cœur blanc, bord rouge sombre
+                        // et un léger halo. Un bruit déterministe + le tick donnent
+                        // une animation de flammes sans créer d'objets supplémentaires.
+                        const fireLevel = fire[id];
+                        if (fireLevel > 0.5 && alt >= 0.05) {
+                            const f = Math.min(1, fireLevel / 100);
+                            const left = x > 0 ? fire[idx(x - 1, y)] : fireLevel;
+                            const right = x < GRID_W - 1 ? fire[idx(x + 1, y)] : fireLevel;
+                            const up = y > 0 ? fire[idx(x, y - 1)] : fireLevel;
+                            const down = y < GRID_H - 1 ? fire[idx(x, y + 1)] : fireLevel;
+                            const neighbor = (left + right + up + down) * 0.25;
+                            const edge = Math.max(0, f - neighbor / 100);
+
+                            // Bruit spatial animé : évite l'aspect uniforme d'une tache.
+                            const hash = Math.sin(x * 12.9898 + y * 78.233 + simTick * 0.37) * 43758.5453;
+                            const noise = hash - Math.floor(hash);
+                            const flicker = 0.82 + noise * 0.28;
+
+                            // Halo chaud diffus autour du foyer.
+                            const halo = Math.min(0.38, 0.10 + f * 0.22);
+                            r = Math.min(255, Math.round(r * (1 - halo) + 255 * halo));
+                            g = Math.min(255, Math.round(g * (1 - halo) + 105 * halo));
+                            b = Math.min(255, Math.round(b * (1 - halo) + 12 * halo));
+
+                            // Bord du front : rouge/orange, cœur : jaune/blanc.
+                            const flame = Math.min(1, Math.max(0, f * flicker));
+                            const core = Math.pow(flame, 1.65) * (0.65 + 0.35 * Math.min(1, neighbor / 70));
+                            const ember = Math.min(1, f * (0.75 + noise * 0.25));
+
+                            r = Math.min(255, Math.round(r * (1 - ember * 0.55) + 255 * ember * 0.55));
+                            g = Math.min(255, Math.round(g * (1 - flame * 0.75) + 58 * flame * 0.75));
+                            b = Math.max(0, Math.round(b * (1 - flame * 0.85)));
+
+                            // Flamme jaune au centre des cellules les plus actives.
+                            if (core > 0.18) {
+                                r = Math.min(255, Math.round(r * (1 - core * 0.55) + 255 * core * 0.55));
+                                g = Math.min(255, Math.round(g * (1 - core * 0.25) + 205 * core * 0.25));
+                                b = Math.min(255, Math.round(b * (1 - core * 0.90) + 70 * core * 0.90));
+                            }
+
+                            // Petites zones sombres/rougeoyantes en périphérie pour
+                            // casser le contour uniforme du foyer.
+                            if (edge > 0.22 && noise < 0.34) {
+                                r = Math.round(r * 0.72);
+                                g = Math.round(g * 0.48);
+                                b = Math.round(b * 0.30);
+                            }
                         }
 
                         // Teinte de pollution atmosphérique (Brume smog)
