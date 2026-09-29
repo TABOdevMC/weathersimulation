@@ -350,6 +350,10 @@
                     <i class="fa-solid fa-arrows-spin text-teal-400"></i>
                     <span>Vecteurs Vent</span>
                 </button>
+                <button data-layer="fire" class="btn-layer px-3 py-1.5 rounded-lg text-xs font-medium transition flex items-center space-x-1.5 text-slate-400 hover:text-white hover:bg-slate-800">
+                    <i class="fa-solid fa-smog text-purple-400"></i>
+                    <span>Densité Feu</span>
+                </button>
                 <button data-layer="pollution" class="btn-layer px-3 py-1.5 rounded-lg text-xs font-medium transition flex items-center space-x-1.5 text-slate-400 hover:text-white hover:bg-slate-800">
                     <i class="fa-solid fa-smog text-purple-400"></i>
                     <span>Pollution AQI</span>
@@ -1201,6 +1205,9 @@
 
                     // Feu : il consomme son intensité, émet de la pollution et
                     // s'éteint beaucoup plus vite sous la pluie.
+                    // Un feu ne peut jamais subsister sur l'eau.
+                    if (elevation[id] < 0.05) fire[id] = 0;
+
                     if (fire[id] > 0.05) {
                         const rainExtinguish = Math.min(4.0, rain[id] * 0.18);
                         const humidityLoss = humidity[id] * 0.001;
@@ -1536,7 +1543,26 @@
                         const s = WIND_COLOR_LUT[windSpeed];
                         r = s[1]; g = s[2]; b = s[3];
 
-                    } else if (activeLayer === 'pollution') {
+                    } else if (activeLayer === 'fire') {
+                        // Densité de feu : noir = aucun feu, jaune/orange/rouge
+                        // = intensité croissante.
+                        const fNorm = Math.min(1, fireLevel / 100);
+                        if (fNorm < 0.01) {
+                            r = Math.floor(12 + alt * 18);
+                            g = Math.floor(16 + alt * 12);
+                            b = Math.floor(24 + alt * 16);
+                        } else {
+                            const t = Math.pow(fNorm, 0.65);
+                            r = Math.round(70 + 185 * t);
+                            g = Math.round(18 + 130 * Math.pow(t, 0.8));
+                            b = Math.round(4 + 20 * (1 - t));
+                        }
+                    } else if (activeLayer === 'fire') {
+                title.textContent = 'Densité de Feu';
+                bar.style.background = 'linear-gradient(to right, #0c1018, #ffcf33, #ff7a00, #ef2222, #ffffff)';
+                min.textContent = '0 % (Aucun feu)';
+                max.textContent = '100 % (Feu intense)';
+            } else if (activeLayer === 'pollution') {
                         let pNorm = Math.min(1, pol / 300.0);
                         let lutIdx = ((pNorm * 255) | 0) * 3;
                         r = lutPollution[lutIdx]; g = lutPollution[lutIdx + 1]; b = lutPollution[lutIdx + 2];
@@ -1565,7 +1591,7 @@
             const cellH = canvas.height / GRID_H;
 
             // Vecteurs de Vent Flottants
-            if (activeLayer === 'composite' || activeLayer === 'wind' || activeLayer === 'radar') {
+            if (activeLayer === 'composite' || activeLayer === 'wind' || activeLayer === 'radar' || activeLayer === 'fire') {
                 ctx.strokeStyle = activeLayer === 'wind' ? 'rgba(255, 255, 255, 0.85)' : (activeLayer === 'radar' ? 'rgba(255, 255, 255, 0.35)' : 'rgba(255, 255, 255, 0.4)');
                 ctx.lineWidth = 1.5;
                 ctx.beginPath();
@@ -1664,8 +1690,13 @@
                                     humidity[id] = Math.max(0.0, humidity[id] - 5.0 * falloff);
                                     break;
                                 case 'fire':
-                                    fire[id] = Math.min(100, fire[id] + 75 * falloff);
-                                    pollution[id] = Math.min(300, pollution[id] + 10 * falloff);
+                                    // Pas de feu sur l'eau : l'élévation sous 0.05 représente
+                                    // l'océan/les lacs dans la simulation.
+                                    if (elevation[id] >= 0.05) {
+                                        fire[id] = Math.min(100, fire[id] + 75 * falloff);
+                                        pollution[id] = Math.min(300, pollution[id] + 10 * falloff);
+                                    }
+                                    break;
                                     break;
                                 case 'extinguish':
                                     fire[id] = Math.max(0, fire[id] - 100 * falloff);
