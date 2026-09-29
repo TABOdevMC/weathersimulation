@@ -444,24 +444,46 @@
                         </div>
                     </div>
 
-                    <!-- Chart 1: Temperature & Humidity History -->
-                    <div class="bg-slate-950/70 p-3 rounded-xl border border-slate-800 space-y-2">
-                        <div class="flex justify-between items-center text-xs">
-                            <span class="font-semibold text-slate-300"><i class="fa-solid fa-chart-line text-blue-400 mr-1"></i> Température & Humidité</span>
-                            <span class="text-[10px] text-slate-500 font-mono">30 derniers pas</span>
+                    <!-- Graphiques séparés de la station -->
+                    <div class="grid grid-cols-1 gap-3">
+                        <div class="bg-slate-950/70 p-3 rounded-xl border border-slate-800 space-y-2">
+                            <div class="flex justify-between items-center text-xs">
+                                <span class="font-semibold text-slate-300"><i class="fa-solid fa-temperature-half text-rose-400 mr-1"></i> Température</span>
+                                <span class="text-[10px] text-slate-500 font-mono">30 derniers pas · °C</span>
+                            </div>
+                            <div class="h-32 w-full relative"><canvas id="chart-temp"></canvas></div>
                         </div>
-                        <div class="h-36 w-full relative">
-                            <canvas id="chart-temp-hum"></canvas>
-                        </div>
-                    </div>
 
-                    <!-- Chart 2: Wind Speed & Air Pollution History -->
-                    <div class="bg-slate-950/70 p-3 rounded-xl border border-slate-800 space-y-2">
-                        <div class="flex justify-between items-center text-xs">
-                            <span class="font-semibold text-slate-300"><i class="fa-solid fa-chart-area text-teal-400 mr-1"></i> Vent & Pollution (AQI)</span>
+                        <div class="bg-slate-950/70 p-3 rounded-xl border border-slate-800 space-y-2">
+                            <div class="flex justify-between items-center text-xs">
+                                <span class="font-semibold text-slate-300"><i class="fa-solid fa-droplet text-cyan-400 mr-1"></i> Humidité</span>
+                                <span class="text-[10px] text-slate-500 font-mono">30 derniers pas · %</span>
+                            </div>
+                            <div class="h-32 w-full relative"><canvas id="chart-hum"></canvas></div>
                         </div>
-                        <div class="h-36 w-full relative">
-                            <canvas id="chart-wind-aqi"></canvas>
+
+                        <div class="bg-slate-950/70 p-3 rounded-xl border border-slate-800 space-y-2">
+                            <div class="flex justify-between items-center text-xs">
+                                <span class="font-semibold text-slate-300"><i class="fa-solid fa-wind text-teal-400 mr-1"></i> Vent</span>
+                                <span class="text-[10px] text-slate-500 font-mono">30 derniers pas · km/h</span>
+                            </div>
+                            <div class="h-32 w-full relative"><canvas id="chart-wind"></canvas></div>
+                        </div>
+
+                        <div class="bg-slate-950/70 p-3 rounded-xl border border-slate-800 space-y-2">
+                            <div class="flex justify-between items-center text-xs">
+                                <span class="font-semibold text-slate-300"><i class="fa-solid fa-cloud-showers-heavy text-blue-400 mr-1"></i> Pluie</span>
+                                <span class="text-[10px] text-slate-500 font-mono">30 derniers pas · mm/h</span>
+                            </div>
+                            <div class="h-32 w-full relative"><canvas id="chart-rain"></canvas></div>
+                        </div>
+
+                        <div class="bg-slate-950/70 p-3 rounded-xl border border-slate-800 space-y-2">
+                            <div class="flex justify-between items-center text-xs">
+                                <span class="font-semibold text-slate-300"><i class="fa-solid fa-smog text-purple-400 mr-1"></i> Pollution</span>
+                                <span class="text-[10px] text-slate-500 font-mono">30 derniers pas · AQI</span>
+                            </div>
+                            <div class="h-32 w-full relative"><canvas id="chart-aqi"></canvas></div>
                         </div>
                     </div>
                 </div>
@@ -739,8 +761,11 @@
         const offCtx = offscreenCanvas.getContext('2d', { alpha: false });
         let offImageData = offCtx.createImageData(GRID_W, GRID_H);
 
-        let chartTempHum = null;
-        let chartWindAqi = null;
+        let chartTemp = null;
+        let chartHum = null;
+        let chartWind = null;
+        let chartRain = null;
+        let chartAqi = null;
 
         // Canvas size handler
         function resizeCanvas() {
@@ -754,16 +779,22 @@
             }
         }
 
-        function initCharts() {
-            const ctx1 = document.getElementById('chart-temp-hum').getContext('2d');
-            chartTempHum = new Chart(ctx1, {
+        function makeStationChart(canvasId, label, unit, borderColor, min = null, max = null) {
+            const chartCtx = document.getElementById(canvasId).getContext('2d');
+            return new Chart(chartCtx, {
                 type: 'line',
                 data: {
                     labels: Array(30).fill(''),
-                    datasets: [
-                        { label: 'Temp (°C)', data: Array(30).fill(0), borderColor: '#f43f5e', borderWidth: 2, pointRadius: 0, tension: 0.3 },
-                        { label: 'Humidité (%)', data: Array(30).fill(0), borderColor: '#22d3ee', borderWidth: 2, pointRadius: 0, tension: 0.3 }
-                    ]
+                    datasets: [{
+                        label,
+                        data: Array(30).fill(0),
+                        borderColor,
+                        backgroundColor: borderColor + '22',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0.3,
+                        fill: true
+                    }]
                 },
                 options: {
                     responsive: true,
@@ -771,33 +802,27 @@
                     animation: false,
                     scales: {
                         x: { display: false },
-                        y: { ticks: { color: '#94a3b8', font: { size: 9 } }, grid: { color: 'rgba(51, 65, 85, 0.3)' } }
+                        y: {
+                            min,
+                            max,
+                            ticks: { color: '#94a3b8', font: { size: 9 }, callback: value => value + (unit ? ' ' + unit : '') },
+                            grid: { color: 'rgba(51, 65, 85, 0.3)' }
+                        }
                     },
-                    plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 10 } } } }
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { callbacks: { label: item => label + ': ' + item.parsed.y.toFixed(1) + (unit ? ' ' + unit : '') } }
+                    }
                 }
             });
+        }
 
-            const ctx2 = document.getElementById('chart-wind-aqi').getContext('2d');
-            chartWindAqi = new Chart(ctx2, {
-                type: 'line',
-                data: {
-                    labels: Array(30).fill(''),
-                    datasets: [
-                        { label: 'Vent (km/h)', data: Array(30).fill(0), borderColor: '#2dd4bf', borderWidth: 2, pointRadius: 0, tension: 0.3 },
-                        { label: 'AQI Pollution', data: Array(30).fill(0), borderColor: '#c084fc', borderWidth: 2, pointRadius: 0, tension: 0.3 }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    animation: false,
-                    scales: {
-                        x: { display: false },
-                        y: { ticks: { color: '#94a3b8', font: { size: 9 } }, grid: { color: 'rgba(51, 65, 85, 0.3)' } }
-                    },
-                    plugins: { legend: { labels: { color: '#cbd5e1', font: { size: 10 } } } }
-                }
-            });
+        function initCharts() {
+            chartTemp = makeStationChart('chart-temp', 'Température', '°C', '#f43f5e');
+            chartHum = makeStationChart('chart-hum', 'Humidité', '%', '#22d3ee', 0, 100);
+            chartWind = makeStationChart('chart-wind', 'Vent', 'km/h', '#2dd4bf', 0);
+            chartRain = makeStationChart('chart-rain', 'Pluie', 'mm/h', '#60a5fa', 0);
+            chartAqi = makeStationChart('chart-aqi', 'Pollution', 'AQI', '#c084fc', 0);
         }
 
         function idx(x, y) {
@@ -1331,14 +1356,18 @@
             document.getElementById('st-val-wind').textContent = speed.toFixed(1) + ' km/h';
             document.getElementById('st-val-aqi').textContent = Math.round(pollution[id]) + ' AQI';
 
-            if (updateCharts && chartTempHum && chartWindAqi) {
-                chartTempHum.data.datasets[0].data = [...st.history.temp];
-                chartTempHum.data.datasets[1].data = [...st.history.hum];
-                chartTempHum.update();
+            if (updateCharts && chartTemp && chartHum && chartWind && chartRain && chartAqi) {
+                chartTemp.data.datasets[0].data = [...st.history.temp];
+                chartHum.data.datasets[0].data = [...st.history.hum];
+                chartWind.data.datasets[0].data = [...st.history.wind];
+                chartRain.data.datasets[0].data = [...st.history.rain];
+                chartAqi.data.datasets[0].data = [...st.history.aqi];
 
-                chartWindAqi.data.datasets[0].data = [...st.history.wind];
-                chartWindAqi.data.datasets[1].data = [...st.history.aqi];
-                chartWindAqi.update();
+                chartTemp.update('none');
+                chartHum.update('none');
+                chartWind.update('none');
+                chartRain.update('none');
+                chartAqi.update('none');
             }
         }
 
